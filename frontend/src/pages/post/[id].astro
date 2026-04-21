@@ -1,0 +1,465 @@
+---
+export const prerender = false;
+// 🟩 服务端脚本区
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import remarkRehype from 'remark-rehype';
+import rehypeSlug from 'rehype-slug'; // 自动给 h1-h6 添加 id
+import rehypeKatex from 'rehype-katex';
+import rehypePrettyCode from 'rehype-pretty-code';
+import rehypeStringify from 'rehype-stringify';
+import GithubSlugger from 'github-slugger'; // 用于保证目录 href 和标题 id 完全一致
+import 'github-markdown-css/github-markdown.css';
+
+const { id } = Astro.params;
+const apiURL = `http://localhost:8888/api/articles/${id}`;
+const response = await fetch(apiURL);
+
+if (!response.ok) {
+    console.error(`后端接口报错，状态码: ${response.status}`);
+    return Astro.redirect('/?error=article_not_found');
+}
+
+const article = await response.json();
+const rawContent = article.content || "暂无内容";
+
+// ==========================================
+// 步骤 A：预处理清洗文本 (修复加粗失效)
+// ==========================================
+let cleanContent = rawContent.replace(/\*\*\s*(.+?)\s*\*\*/g, '**$1**');
+cleanContent = cleanContent.replace(/\*\*(.*?)([:：,，.。!！?？;；]+)\*\*/g, '**$1**$2');
+
+// ==========================================
+// 步骤 B：提取目录 (TOC)
+// ==========================================
+const headings = [];
+const slugger = new GithubSlugger(); // 实例化 slugger
+const headingRegex = /^(#{1,3})\s+(.+)$/gm;
+let match;
+
+// 重置 slugger 状态，避免热更新时产生带 -1 后缀的重复 id
+slugger.reset(); 
+
+while ((match = headingRegex.exec(cleanContent)) !== null) {
+    const text = match[2].trim();
+    headings.push({
+        depth: match[1].length,
+        text: text,
+        // github-slugger 会把中文或英文转换为合法的 id
+        slug: slugger.slug(text) 
+    });
+}
+
+
+// ==========================================
+// 步骤 C：执行 Unified 管道渲染
+// ==========================================
+const processor = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeSlug) // 核心！自动为正文的标题生成与 github-slugger 完全一致的 id
+    .use(rehypeKatex, { 
+        strict: false // 也可以写成 strict: "ignore"
+    })
+    .use(rehypePrettyCode, {
+        theme: 'github-dark',
+        keepBackground: true,
+    })
+    .use(rehypeStringify, { allowDangerousHtml: true });
+
+const vfile = await processor.process(cleanContent);
+const contentHTML = vfile.toString();
+
+const publishDate = article.created_at.split('T')[0];
+---
+
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{article.title} - 我的 Astro 博客</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="back-link">← 返回首页</a>
+        
+        <form action="/" method="GET" class="nav-search-box">
+        <input type="text" name="q" placeholder="全站搜索..." required />
+        <button type="submit">🔍</button>
+        </form>
+    </nav>
+
+    <div class="layout-wrapper">
+    <aside class="toc-aside">
+        <h3>目录</h3>
+        <ul class="toc-list">
+            {headings.map((h) => (
+                <li class={`toc-depth-${h.depth}`}>
+                    <a href={`#${h.slug}`}>{h.text}</a>
+                </li>
+            ))}
+        </ul>
+    </aside>
+
+    <main class="article-container">
+        <header class="article-header">
+            <h1>{article.title}</h1>
+            
+            <div class="meta-info">
+                <span class="category-badge">📁 {article.category}</span>
+                <span>📅 {article.created_at.split('T')[0]}</span>
+            </div>
+
+            <div id="admin-actions" style="display: none; justify-content: center; gap: 15px; margin-top: 15px; margin-bottom: 20px;">
+                <a href={`/edit/${article.id}`} class="edit-action-btn">✏️ 编辑文章</a>
+                <button id="delete-action-btn" data-id={article.id} class="delete-action-btn">🗑️ 删除文章</button>
+            </div>
+
+            {article.tags && article.tags.length > 0 && (
+                <div class="tags-container">
+                    {article.tags.map((tag: string) => (
+                        <span class="tag-badge">#{tag}</span>
+                    ))}
+                </div>
+            )}
+        </header>
+
+        <article class="markdown-body" set:html={contentHTML} />
+    </main>
+</div>
+
+    
+</body>
+</html>
+
+<style is:global>
+    /* is:global 告诉 Astro 这些样式全局生效，因为 Markdown 渲染出的标签需要全局样式匹配 */
+    
+    :root {
+        --text-color: #2c3e50;
+        --bg-color: #ffffff;
+        --accent-color: #0066cc;
+        --border-color: #eaecef;
+    }
+
+    body { 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+        color: var(--text-color);
+        background-color: #f8f9fa;
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+    }
+
+    .navbar {
+        background: var(--bg-color);
+        padding: 15px 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        display: flex; 
+        justify-content: center; /* 核心修改：让导航栏内的主要内容（搜索框）强行居中 */
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .nav-search-box {
+        display: flex;
+        align-items: center;
+        background: #f1f3f5;
+        border-radius: 20px; /* 圆角胶囊风格 */
+        padding: 6px 14px;
+        border: 1px solid transparent;
+        transition: all 0.3s ease;
+    }
+
+    .nav-search-box:focus-within {
+        border-color: var(--accent-color);
+        background: white;
+        box-shadow: 0 0 0 3px rgba(0,102,204,0.1);
+    }
+
+    .nav-search-box input:focus {
+        width: 220px; 
+    }
+
+    .nav-search-box button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 1.1em;
+        color: #888;
+        padding: 0;
+        margin-left: 5px;
+        transition: transform 0.2s;
+    }
+    
+    .nav-search-box button:hover {
+        transform: scale(1.1); /* 鼠标悬浮放大放大镜 */
+    }
+
+    .back-link {
+        position: absolute; /* 核心修改：将返回按钮抽离文档流，不干扰搜索框的居中 */
+        left: 20px;         /* 强制锚定在距离左侧 20px 的位置 */
+        text-decoration: none;
+        color: var(--accent-color);
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    .back-link:hover { color: #004499; }
+
+    .article-container { 
+        max-width: 760px; 
+        margin: 40px auto; 
+        padding: 40px; 
+        background: var(--bg-color);
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .article-header {
+        text-align: center;
+        margin-bottom: 40px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .article-header h1 {
+        font-size: 2.2em;
+        margin-bottom: 15px;
+    }
+    .layout-wrapper {
+    display: flex;
+    max-width: 1200px; /* 放宽总体宽度以容纳侧边栏 */
+    margin: 40px auto;
+    padding: 0 20px;
+    align-items: flex-start; /* 使得侧边栏不会被拉伸 */
+    gap: 30px;
+}
+
+.toc-aside {
+    position: sticky;
+    top: 40px; /* 距离页面顶部 40px 开始固定不动 */
+    width: 260px;
+    background: var(--bg-color);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    max-height: calc(100vh - 80px); /* 防止目录过长，开启内部滚动 */
+    overflow-y: auto;
+}
+
+.toc-list { list-style: none; padding-left: 0; }
+.toc-list li { margin-bottom: 8px; }
+.toc-depth-1 { font-weight: bold; }
+.toc-depth-2 { padding-left: 15px; }
+.toc-depth-3 { padding-left: 30px; font-size: 0.85em; }
+
+/* 基础链接样式：移除原本预留的左侧边框和缩进 */
+.toc-list a { 
+    text-decoration: none; 
+    color: #6a737d; 
+    transition: all 0.2s ease; 
+    display: block; 
+    font-size: 0.9em; 
+    padding: 6px 12px; /* 增加四周的内边距，为了让背景色有足够的空间 */
+    border-radius: 6px; /* 增加一点圆角，显得更现代 */
+    border: none; /* 明确移除任何边框 */
+}
+.toc-list a.active {
+    color: #0066cc;
+    background: rgba(0, 102, 204, 0.1);
+    font-weight: 600;
+}
+/* 鼠标悬浮时的轻微反馈 */
+.toc-list a:hover { 
+    color: var(--accent-color); 
+    background: rgba(0, 102, 204, 0.05); /* 极浅的背景 */
+}
+
+.article-container { 
+    flex: 1; /* 占据剩下的所有空间 */
+    margin: 0; /* 移除原来的 margin auto */
+    /* 保留原有的 padding, bg, box-shadow 即可 */
+}
+
+.meta { color: #6a737d; font-size: 0.9em; display: flex; justify-content: center; gap: 20px; }
+.meta-info { display: flex; gap: 15px; justify-content: center; margin-bottom: 15px; color: #666; font-size: 0.9em; }
+.category-badge { color: var(--accent-color); font-weight: bold; }
+.tags-container { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.tag-badge { background-color: #e9ecef; color: #495057; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; transition: background 0.2s; }
+.tag-badge:hover { background-color: #dee2e6; cursor: pointer; }
+.edit-action-btn { background-color: #ffc107; color: #000; padding: 6px 15px; border-radius: 4px; text-decoration: none; font-size: 0.9em; font-weight: bold; }
+.edit-action-btn:hover { background-color: #e0a800; }
+.delete-action-btn { background-color: #dc3545; color: #fff; padding: 6px 15px; border-radius: 4px; border: none; font-size: 0.9em; font-weight: bold; cursor: pointer; }
+.delete-action-btn:hover { background-color: #c82333; }
+
+.copy-code-btn {
+position: absolute;
+top: 12px;
+right: 12px;
+background: rgba(255, 255, 255, 0.1); /* 半透明白色背景 */
+border: 1px solid rgba(255, 255, 255, 0.2);
+color: #e6edf3; /* ★ 替换为亮灰色文字，在黑色背景上极度清晰 ★ */
+padding: 5px 10px;
+border-radius: 6px;
+font-size: 0.85em;
+font-weight: 500;
+cursor: pointer;
+transition: all 0.2s ease;
+opacity: 0;
+backdrop-filter: blur(4px); /* 可选：毛玻璃效果 */
+z-index: 10;
+}
+
+.markdown-body pre:hover .copy-code-btn {
+    opacity: 1;
+}
+
+.copy-code-btn:hover { 
+    background: rgba(255, 255, 255, 0.25); 
+    color: #ffffff;
+}
+
+.copy-code-btn.copied { 
+    background: #238636; /* GitHub 风格的成功绿色 */
+    color: white; 
+    border-color: #2ea043; 
+    opacity: 1; 
+}
+
+    
+</style>
+
+<script>
+    // 💡 Astro 中的模块化 script 运行时 DOM 必定已就绪，直接写逻辑，剥离 DOMContentLoaded 包装！
+
+    // ==========================================
+    // 1. 挂载管理员与删除按钮逻辑
+    // ==========================================
+    const token = localStorage.getItem('blog_token');
+    const adminActions = document.getElementById('admin-actions');
+    const deleteBtn = document.getElementById('delete-action-btn');
+
+    if (token && adminActions) {
+        adminActions.style.display = 'flex';
+    }
+
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            if (confirm("确定要永久删除这篇文章吗？此操作不可逆！")) {
+                const articleId = this.getAttribute('data-id');
+                deleteBtn.innerText = "正在删除...";
+                
+                fetch(`http://localhost:8888/api/articles/${articleId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                })
+                .then(response => {
+                    if (response.status === 401) {
+                        localStorage.removeItem('blog_token');
+                        throw new Error('登录状态已失效，请重新登录');
+                    }
+                    if (!response.ok) throw new Error('删除失败');
+                    return response.json();
+                })
+                .then(data => {
+                    alert(data.message);
+                    window.location.href = '/'; 
+                })
+                .catch(err => {
+                    alert(err.message);
+                    deleteBtn.innerText = "🗑️ 删除文章";
+                });
+            }
+        });
+    }
+
+    // ==========================================
+    // 2. 挂载一键复制代码按钮
+    // ==========================================
+    document.querySelectorAll('.markdown-body pre').forEach((block) => {
+        block.style.position = 'relative'; 
+        const button = document.createElement('button');
+        button.className = 'copy-code-btn';
+        button.innerText = '复制';
+        block.appendChild(button);
+
+        button.addEventListener('click', async () => {
+            const codeText = block.querySelector('code')?.innerText || block.innerText;
+            try {
+                await navigator.clipboard.writeText(codeText);
+                button.innerText = '已复制!';
+                button.classList.add('copied');
+                setTimeout(() => { 
+                    button.innerText = '复制'; 
+                    button.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('复制失败!', err);
+                button.innerText = '失败';
+            }
+        });
+    });
+
+    // ==========================================
+    // 3. 核心修复：目录滚动高亮 (Scroll Spy)
+    // ==========================================
+    window.addEventListener('scroll', () => {
+    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 10) {
+        const last = headings[headings.length - 1];
+        if (last?.id) setActive(last.id);
+    }
+});
+    const headings = Array.from(
+    document.querySelectorAll('.markdown-body h1, .markdown-body h2, .markdown-body h3')
+);
+const tocLinks = document.querySelectorAll('.toc-list a');
+
+if (headings.length > 0) {
+    let activeId = null;
+
+    const setActive = (id) => {
+        if (activeId === id) return;
+        activeId = id;
+
+        tocLinks.forEach(link => link.classList.remove('active'));
+
+        const activeLink = Array.from(tocLinks).find(link => {
+            const href = link.getAttribute('href');
+            return href === `#${id}` || href === `#${encodeURIComponent(id)}`;
+        });
+
+        if (activeLink) {
+            activeLink.classList.add('active');
+            activeLink.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        // 过滤出“进入视口”的标题
+        const visibleHeadings = entries
+            .filter(e => e.isIntersecting)
+            // ⭐ 核心：按距离顶部排序
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+
+        if (visibleHeadings.length > 0) {
+            const id = visibleHeadings[0].target.id;
+            if (id) setActive(id);
+        }
+    }, {
+        rootMargin: '0px 0px -70% 0px', // 更早触发，体验更自然
+        threshold: 0
+    });
+
+    headings.forEach(h => observer.observe(h));
+}
+</script>

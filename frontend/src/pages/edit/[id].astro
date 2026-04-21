@@ -1,0 +1,125 @@
+---
+// src/pages/edit/[id].astro
+import Layout from '../../layouts/Layout.astro';
+
+// 【SSR 的魔法】在服务端直接查出旧数据
+const { id } = Astro.params;
+const apiURL = `http://localhost:8888/api/articles/${id}`;
+const response = await fetch(apiURL);
+
+if (response.status === 404) {
+    return Astro.redirect('/404'); // 如果文章不存在，重定向
+}
+const article = await response.json();
+---
+
+<Layout title="编辑文章">
+    <div class="editor-container">
+        <h1>✍️ 编辑文章</h1>
+        
+        <form id="edit-form" data-id={id}>
+            <div class="form-group">
+                <label for="title">文章标题：</label>
+                <input type="text" id="title" value={article.title} required>
+            </div>
+            
+            <div class="form-group" style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <label for="category">📁 分类：</label>
+                    <input type="text" id="category" value={article.category === '未分类' ? '' : article.category}>
+                </div>
+                <div style="flex: 2;">
+                    <label for="tags">🏷️ 标签 (用逗号分隔)：</label>
+                    <input type="text" id="tags" value={article.tags ? article.tags.join(', ') : ''}>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="content">文章正文：</label>
+                <textarea id="content" required>{article.content}</textarea>
+            </div>
+            
+            <div class="actions">
+                <button type="submit" class="submit-btn">💾 保存修改</button>
+                <a href={`/post/${id}`} class="cancel-btn">取消返回</a>
+            </div>
+        </form>
+
+        <div id="message"></div>
+    </div>
+</Layout>
+
+<style>
+    /* 样式与 publish.astro 几乎一致 */
+    .editor-container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .form-group { margin-bottom: 25px; }
+    label { display: block; margin-bottom: 8px; font-weight: 600; }
+    input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    textarea { height: 400px; resize: vertical; font-family: ui-monospace, monospace; line-height: 1.5; }
+    .actions { display: flex; gap: 15px; align-items: center; }
+    .submit-btn { background-color: #0056b3; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .cancel-btn { color: #666; text-decoration: none; }
+    .cancel-btn:hover { text-decoration: underline; }
+    #message { margin-top: 20px; font-weight: bold; text-align: center; }
+</style>
+
+<script>
+    const form = document.getElementById('edit-form');
+    const msgBox = document.getElementById('message');
+
+    // 页面加载时检查登录状态
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!localStorage.getItem('blog_token')) {
+            alert("你还未登录，无权编辑！");
+            window.location.href = '/login';
+        }
+    });
+
+    if (form && msgBox) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            
+            const token = localStorage.getItem('blog_token');
+            const articleId = form.getAttribute('data-id'); // 拿到绑定的 ID
+            const title = (document.getElementById('title') as HTMLInputElement).value;
+            const content = (document.getElementById('content') as HTMLTextAreaElement).value;
+            const category = (document.getElementById('category') as HTMLInputElement).value;
+            const tagsInput = (document.getElementById('tags') as HTMLInputElement).value;
+            const tagsArray = tagsInput.split(',').map(t => t.trim()).filter(t => t !== '');
+            msgBox.innerText = "正在保存修改...";
+            msgBox.style.color = "#666";
+
+            // 注意使用 PUT 方法
+            fetch(`http://localhost:8888/api/articles/${articleId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token 
+                },
+                body: JSON.stringify({ 
+                    title: title, 
+                    content: content,
+                    category: category,
+                    tags: tagsArray
+                })
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    localStorage.removeItem('blog_token');
+                    throw new Error('登录已过期，请重新登录');
+                }
+                if (!response.ok) throw new Error('保存失败，状态码：' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                msgBox.innerText = "✅ " + data.message + " (即将跳转...)";
+                msgBox.style.color = "green";
+                setTimeout(() => { window.location.href = `/post/${articleId}`; }, 1000);
+            })
+            .catch(error => {
+                msgBox.innerText = "❌ " + error.message;
+                msgBox.style.color = "red";
+            });
+        });
+    }
+</script>

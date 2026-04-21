@@ -1,0 +1,128 @@
+---
+// src/pages/publish.astro
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="发布新文章">
+    <div class="editor-container">
+        <h1>发布新文章</h1>
+        
+        <form id="publish-form">
+            <div class="form-group">
+                <label for="title">文章标题：</label>
+                <input type="text" id="title" placeholder="" required>
+            </div>
+            <div class="form-group" style="display: flex; gap: 20px;">
+                <div style="flex: 1;">
+                    <label for="category">分类：</label>
+                    <input type="text" id="category" placeholder="">
+                </div>
+                <div style="flex: 2;">
+                    <label for="tags">标签 (用逗号分隔)：</label>
+                    <input type="text" id="tags" placeholder="">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="content">文章正文 (支持 Markdown)：</label>
+                <textarea id="content" placeholder="" required></textarea>
+            </div>
+            
+            <button type="submit" class="submit-btn">立即发布</button>
+        </form>
+
+        <div id="message"></div>
+    </div>
+</Layout>
+
+<style>
+    .editor-container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .form-group { margin-bottom: 25px; }
+    label { display: block; margin-bottom: 8px; font-weight: 600; }
+    input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    textarea { height: 400px; resize: vertical; font-family: ui-monospace, monospace; line-height: 1.5; }
+    .submit-btn { 
+        display: block;        /* 必须先将其变为块级元素 */
+        margin-left: auto;     /* 核心魔法：利用 auto 自动占据左侧所有剩余空间，将按钮推向右侧 */
+        background-color: var(--accent-color); 
+        color: white; 
+        border: none; 
+        padding: 12px 24px; 
+        font-size: 16px; 
+        border-radius: 6px; 
+        cursor: pointer; 
+        font-weight: bold; 
+    }
+    .submit-btn:hover { background-color: #0056b3; }
+    #message { margin-top: 20px; font-weight: bold; text-align: center; }
+</style>
+
+<script>
+    // 💡 核心修复：必须监听 astro:page-load，确保每次进入此页面时脚本都能重新执行
+    document.addEventListener('astro:page-load', () => {
+        const token = localStorage.getItem('blog_token');
+        
+        // 1. 登录拦截：如果没登录，直接踢回首页
+        if (!token) {
+            alert("你还未登录，请先登录！");
+            window.location.href = '/'; 
+            return; // 终止后续代码执行
+        }
+
+        const form = document.getElementById('publish-form');
+        const msgBox = document.getElementById('message');
+
+        // 2. 表单提交逻辑
+        if (form && msgBox) {
+            // 每次页面加载时，重新绑定 submit 事件，避免事件侦听器丢失
+            form.onsubmit = function(e) {
+                e.preventDefault(); 
+                
+                const title = (document.getElementById('title') as HTMLInputElement).value;
+                const content = (document.getElementById('content') as HTMLTextAreaElement).value;
+                const category = (document.getElementById('category') as HTMLInputElement).value;
+                const tagsInput = (document.getElementById('tags') as HTMLInputElement).value;
+
+                const tagsArray = tagsInput.split(',')
+                                           .map(t => t.trim())
+                                           .filter(t => t !== '');
+                                           
+                msgBox.innerText = "正在发布中...";
+                msgBox.style.color = "#666";
+
+                fetch('http://localhost:8888/api/articles', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ 
+                        title: title, 
+                        content: content,
+                        category: category,
+                        tags: tagsArray
+                    })
+                })
+                .then(response => {
+                    if (response.status === 401) {
+                        localStorage.removeItem('blog_token');
+                        throw new Error('登录已过期，请重新登录');
+                    }
+                    if (!response.ok) throw new Error('发布失败，状态码：' + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    msgBox.innerText = "✅ " + data.message + " (即将跳转到首页...)";
+                    msgBox.style.color = "green";
+                    setTimeout(() => { window.location.href = '/'; }, 1500);
+                })
+                .catch(error => {
+                    msgBox.innerText = "❌ " + error.message;
+                    msgBox.style.color = "red";
+                    if (error.message.includes('重新登录')) {
+                        setTimeout(() => { window.location.href = '/'; }, 1500);
+                    }
+                });
+            };
+        }
+    });
+</script>

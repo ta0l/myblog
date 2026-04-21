@@ -1,0 +1,57 @@
+---
+// src/pages/explore.astro
+import Layout from '../layouts/Layout.astro';
+
+// 获取分类和标签数据
+const response = await fetch('http://localhost:8888/api/sidebar');
+const data = await response.json();
+---
+
+<Layout title="探索发现">
+    <div class="explore-container">
+        <div class="header" style="text-align: center; margin-bottom: 40px;">
+            <!-- <h1>🧭 探索发现</h1> -->
+            <p style="color: #666;">浏览全部分类与标签</p>
+        </div>
+
+        <section class="explore-section">
+            <h2>📁 分类目录</h2>
+            <div class="category-grid">
+                {data.categories.map((c: any) => (
+                    <a href={`/?category=${c.name}`} class="category-card">
+                        <span class="name">{c.name}</span>
+                        <span class="count">{c.count} 篇文章</span>
+                    </a>
+                ))}
+            </div>
+        </section>
+
+        <section class="explore-section">
+            <h2>🏷️ 标签云</h2>
+            <div class="tag-cloud">
+                {data.tags.map((t: any) => (
+                    <a href={`/?tag=${t.name}`} class="tag-item">
+                        {t.name} <span class="count">{t.count}</span>
+                    </a>
+                ))}
+            </div>
+        </section>
+    </div>
+</Layout>
+
+<style>
+    .explore-container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .explore-section { margin-bottom: 40px; }
+    h2 { border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 20px; color: #333; }
+    
+    .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+    .category-card { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border: 1px solid #eee; border-radius: 8px; text-decoration: none; color: #333; transition: all 0.2s; }
+    .category-card:hover { border-color: var(--accent-color); background: #f0f7ff; transform: translateY(-2px); }
+    .category-card .name { font-weight: bold; }
+    .category-card .count { font-size: 0.85em; color: #888; background: white; padding: 2px 8px; border-radius: 12px; }
+
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 12px; }
+    .tag-item { text-decoration: none; background: #f1f3f5; color: #495057; padding: 8px 15px; border-radius: 20px; font-size: 0.95em; transition: all 0.2s; display: flex; align-items: center; gap: 8px; border: 1px solid transparent; }
+    .tag-item:hover { background: white; border-color: var(--accent-color); color: var(--accent-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .tag-item .count { background: #e9ecef; color: #666; font-size: 0.8em; padding: 2px 6px; border-radius: 10px; }
+</style>

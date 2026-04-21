@@ -1,0 +1,20 @@
+# --- 数据库文件 (非常重要) ---
+blog.db
+
+# --- Go 后端相关 ---
+*.exe
+*.test
+*.out
+# 忽略你可能编译出的后端二进制文件（视你的命名而定）
+blog-server
+main
+
+# --- 配置文件与环境变量 ---
+.env
+# 如果 config 目录下有包含真实密钥的配置文件，请忽略它们，只上传 config.example.yaml
+# config/config.yaml 
+
+# --- Astro 前端相关 ---
+frontend/node_modules/
+frontend/.astro/
+frontend/.vscode

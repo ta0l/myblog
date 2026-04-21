@@ -1,0 +1,156 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const currentCategory = Astro.url.searchParams.get('category') || '';
+const currentTag = Astro.url.searchParams.get('tag') || '';
+const currentQ = Astro.url.searchParams.get('q') || ''; // 获取搜索词
+const currentPage = parseInt(Astro.url.searchParams.get('page') || '1'); // 获取页码
+
+let apiURL = 'http://localhost:8888/api/articles';
+const params = new URLSearchParams();
+if (currentCategory) params.append('category', currentCategory);
+if (currentTag) params.append('tag', currentTag);
+if (currentQ) params.append('q', currentQ);
+if (currentPage > 1) params.append('page', currentPage.toString());
+
+if (params.toString()) apiURL += '?' + params.toString();
+
+const [articlesRes, sidebarRes] = await Promise.all([
+    fetch(apiURL),
+    fetch('http://localhost:8888/api/sidebar')
+]);
+
+// 注意：后端的返回结构变了！现在是 result.articles 才是文章数组
+let result = { articles: [], page: 1, total_pages: 1, total: 0 };
+let sidebar = { categories: [], tags: [] };
+
+if (articlesRes.ok) result = await articlesRes.json();
+if (sidebarRes.ok) sidebar = await sidebarRes.json();
+
+const articles = result.articles || [];
+---
+
+
+<Layout title="首页">
+    
+
+    <div class="blog-container">
+        
+        <form action="/" method="GET" class="interactive-filter">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" name="q" value={currentQ} placeholder="搜索文章标题或内容..." />
+            </div>
+
+            <div class="filters">
+                <div class="select-group">
+                    <label>📁</label>
+                    <select name="category" onchange="this.form.submit()">
+                        <option value="">所有分类</option>
+                        {sidebar.categories.map((c: any) => (
+                            <option value={c.name} selected={currentCategory === c.name}>{c.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div class="select-group">
+                    <label>🏷️</label>
+                    <select name="tag" onchange="this.form.submit()">
+                        <option value="">所有标签</option>
+                        {sidebar.tags.map((t: any) => (
+                            <option value={t.name} selected={currentTag === t.name}>{t.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {(currentCategory || currentTag || currentQ) && (
+                <a href="/" class="clear-btn">✖ 清除</a>
+            )}
+        </form>
+
+        <div class="article-list">
+            {articles.length === 0 ? 
+                <div class="empty-state">没有找到符合条件的文章哦~ <br> <a href="/">返回全部</a></div> : 
+                articles.map((article: any) => (
+                    <div class="article-card">
+                        <h2 class="article-title"><a href={`/post/${article.id}`}>{article.title}</a></h2>
+                        <div class="card-meta">
+                            <a href={`/?category=${article.category}`} class="meta-link category-link">📁 {article.category}</a>
+                            <span class="date">📅 {article.created_at.split('T')[0]}</span>
+                        </div>
+                        {article.tags && article.tags.length > 0 && (
+                            <div class="card-tags">
+                                {article.tags.map((tag: string) => (
+                                    <a href={`/?tag=${tag}`} class="meta-link tag-link">#{tag}</a>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))
+            }
+        </div>
+
+        {result.total_pages > 1 && (
+            <div class="pagination">
+                {/* 巧妙地使用 JS URL 构造，保证翻页时不丢失当前的分类、标签和搜索条件 */}
+                {result.page > 1 ? (
+                    <a href={`/?${new URLSearchParams({...Object.fromEntries(params), page: (result.page - 1).toString()}).toString()}`} class="page-btn">← 上一页</a>
+                ) : (
+                    <span class="page-btn disabled">← 上一页</span>
+                )}
+                
+                <span class="page-info">第 {result.page} / {result.total_pages} 页 (共 {result.total} 篇)</span>
+
+                {result.page < result.total_pages ? (
+                    <a href={`/?${new URLSearchParams({...Object.fromEntries(params), page: (result.page + 1).toString()}).toString()}`} class="page-btn">下一页 →</a>
+                ) : (
+                    <span class="page-btn disabled">下一页 →</span>
+                )}
+            </div>
+        )}
+        </div>
+</Layout>
+
+<style>
+    .blog-container { max-width: 800px; margin: 0 auto; }
+    
+    /* ---------------- 搜索框与过滤器增强 ---------------- */
+    /* 【修复点 3】：补全了上一轮你遗漏复制的全新 CSS 样式 */
+    .interactive-filter { display: flex; flex-direction: column; gap: 15px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); margin-bottom: 30px; border: 1px solid #f0f0f0; }
+    
+    .search-box { display: flex; align-items: center; background: #f8f9fa; border-radius: 8px; padding: 8px 15px; border: 1px solid #e9ecef; transition: all 0.2s; }
+    .search-box:focus-within { border-color: var(--accent-color); background: white; box-shadow: 0 0 0 3px rgba(0,102,204,0.1); }
+    .search-icon { color: #888; margin-right: 10px; font-size: 1.1em; }
+    .search-box input { flex: 1; border: none; outline: none; background: transparent; font-size: 1em; color: #333; padding: 5px 0; }
+    
+    .filters { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+    .select-group { display: flex; align-items: center; gap: 5px; background: white; padding: 4px 8px; border-radius: 6px; border: 1px solid #90caf9; }
+    .select-group select { border: none; outline: none; background: transparent; font-size: 0.95em; color: #333; cursor: pointer; padding-right: 5px; }
+    
+    .clear-btn { align-self: flex-start; color: #d32f2f; text-decoration: none; font-size: 0.9em; font-weight: bold; margin-top: 2px; }
+    .clear-btn:hover { text-decoration: underline; }
+
+    /* ---------------- 分页器样式 ---------------- */
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 40px; margin-bottom: 60px; }
+    .page-btn { padding: 8px 20px; background: white; color: var(--accent-color); border: 1px solid var(--accent-color); border-radius: 20px; text-decoration: none; font-weight: bold; transition: all 0.2s; }
+    .page-btn:hover { background: var(--accent-color); color: white; }
+    .page-btn.disabled { color: #ccc; border-color: #eee; cursor: not-allowed; background: #fafafa; }
+    .page-info { color: #666; font-size: 0.95em; font-weight: 500; }
+
+    /* ---------------- 文章列表单栏优化 ---------------- */
+    .empty-state { text-align: center; color: #666; padding: 60px 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); line-height: 1.8; }
+    .empty-state a { color: var(--accent-color); font-weight: bold; text-decoration: none; }
+    .article-card { background: white; padding: 30px; margin-bottom: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.2s, box-shadow 0.2s; }
+    .article-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.08); }
+    .article-title { margin: 0 0 15px 0; font-size: 1.6em; }
+    .article-title a { text-decoration: none; color: #1a1a1a; }
+    .article-title a:hover { color: var(--accent-color); }
+    .card-meta { display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.95em; color: #666; }
+    .card-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+    .meta-link { text-decoration: none; padding: 4px 12px; border-radius: 20px; font-size: 0.85em; transition: background 0.2s; }
+    .category-link { color: var(--accent-color); background: rgba(0, 102, 204, 0.05); font-weight: 500; }
+    .category-link:hover { background: rgba(0, 102, 204, 0.15); }
+    .tag-link { color: #495057; background: #f1f3f5; }
+    .tag-link:hover { background: #e2e6ea; }
+</style>
