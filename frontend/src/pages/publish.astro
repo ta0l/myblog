@@ -3,134 +3,459 @@
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="发布新文章">
-    <div class="editor-container">
-        <h1>发布新文章</h1>
-        
-        <form id="publish-form">
-            <div class="form-group">
-                <label for="title">文章标题：</label>
-                <input type="text" id="title" placeholder="" required>
-            </div>
-            <div class="form-group" style="display: flex; gap: 20px;">
-                <div style="flex: 1;">
-                    <label for="category">分类：</label>
-                    <input type="text" id="category" placeholder="">
-                </div>
-                <div style="flex: 2;">
-                    <label for="tags">标签 (用逗号分隔)：</label>
-                    <input type="text" id="tags" placeholder="">
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="content">文章正文 (支持 Markdown)：</label>
-                <textarea id="content" placeholder="" required></textarea>
-            </div>
-            
-            <button type="submit" class="submit-btn">立即发布</button>
-        </form>
+<Layout title="发布文章">
+  <main class="publish-wrapper">
+    
+    <header class="publish-header">
+      <h1>发布新文章</h1>
+      <p>拖拽 Markdown 文件，或直接在此处开始你的创作</p>
+    </header>
 
-        <div id="message"></div>
+    <div id="dropzone" class="dropzone">
+      <div class="dropzone-content">
+        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <p>将 Typora 的 <b>.md 文件</b> 拖拽到此处<br><span>或点击选择文件</span></p>
+      </div>
+      <input type="file" id="fileInput" accept=".md" style="display: none;" />
     </div>
+
+    <section class="editor-card">
+      <div class="form-group title-group">
+        <input type="text" id="titleInput" placeholder="文章标题" autocomplete="off" />
+      </div>
+      
+      <div class="form-group meta-group">
+        <div class="input-with-icon">
+          <span class="icon">📁</span>
+          <input type="text" id="categoryInput" placeholder="分类 (如: 人工智能)" autocomplete="off" />
+        </div>
+        <div class="input-with-icon">
+          <span class="icon">🏷️</span>
+          <input type="text" id="tagsInput" placeholder="标签 (多个标签用逗号分隔)" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="form-group content-group">
+        <textarea id="contentInput" placeholder="开始用 Markdown 记录你的灵感..." rows="18"></textarea>
+      </div>
+    </section>
+    
+    <div class="action-bar">
+      <button id="publishBtn" class="publish-btn">
+        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        发布文章
+      </button>
+    </div>
+
+  </main>
 </Layout>
 
 <style>
-    /* ... 保留你原有的全部样式 ... */
-    .editor-container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    .form-group { margin-bottom: 25px; }
-    label { display: block; margin-bottom: 8px; font-weight: 600; }
-    input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    textarea { height: 400px; resize: vertical; font-family: ui-monospace, monospace; line-height: 1.5; }
-    .submit-btn { 
-        display: block;        
-        margin-left: auto;     
-        background-color: var(--accent-color); 
-        color: white; 
-        border: none; 
-        padding: 12px 24px; 
-        font-size: 16px; 
-        border-radius: 6px; 
-        cursor: pointer; 
-        font-weight: bold; 
+  /* ========================================= */
+  /* 全局与布局规范 */
+  /* ========================================= */
+  .publish-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  .publish-header {
+    margin-bottom: 2.5rem;
+  }
+  .publish-header h1 {
+    font-size: 2.4rem;
+    color: #0f172a; /* 更深的颜色，增加稳重感 */
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+  }
+  .publish-header p {
+    color: #64748b; /* 提高副标题对比度 */
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
+  /* ========================================= */
+  /* 拖拽导入区 (Dropzone) - 强化虚线和背景 */
+  /* ========================================= */
+  .dropzone {
+    background: #f8fafc; /* 增加底色 */
+    border: 2px dashed #cbd5e1; /* 加深虚线颜色 */
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    color: #475569; /* 加深文字 */
+    cursor: pointer;
+    margin-bottom: 2.5rem;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .dropzone:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+  }
+
+  .dropzone.dragover {
+    border-color: #2563eb;
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.12);
+  }
+
+  .dropzone-content svg {
+    margin-bottom: 12px;
+    color: currentColor;
+  }
+
+  .dropzone p {
+    margin: 0;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    font-weight: 500;
+  }
+  
+  .dropzone p span {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #64748b;
+  }
+
+  /* ========================================= */
+  /* 编辑器卡片 - 增强三维厚度 */
+  /* ========================================= */
+  .editor-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 2.5rem;
+    /* 核心修改：加重阴影，增加边界线 */
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08), 0 4px 6px rgba(15, 23, 42, 0.04);
+    border: 1px solid #e2e8f0; 
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  input[type="text"], textarea {
+    width: 100%;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: #0f172a; /* 最深色文字 */
+  }
+  input::placeholder, textarea::placeholder {
+    color: #94a3b8; /* 加深占位符，不再是浅灰色 */
+  }
+
+  /* 标题输入框 */
+  .title-group {
+    border-bottom: 2px solid #e2e8f0; /* 加粗分割线 */
+    padding-bottom: 1.2rem;
+    margin-bottom: 2rem;
+  }
+  #titleInput {
+    font-size: 2.2rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  #titleInput::placeholder {
+    font-weight: 700;
+    color: #cbd5e1;
+  }
+
+  /* 元数据双栏设计 - 增加实心质感 */
+  .meta-group {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .input-with-icon {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: #f8fafc; /* 明显的灰底色 */
+    border-radius: 10px;
+    padding: 0.9rem 1.2rem;
+    border: 1px solid #e2e8f0; /* 明确的边框 */
+    transition: all 0.2s;
+  }
+  
+  .input-with-icon:focus-within {
+    background: #ffffff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); /* 强烈的聚焦反馈 */
+  }
+
+  .input-with-icon .icon {
+    font-size: 1.1rem;
+    margin-right: 0.8rem;
+  }
+  
+  .input-with-icon input {
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  /* 🌟 正文文本域 - 核心优化区域 */
+  .content-group {
+    margin-bottom: 0;
+    background: #f8fafc; /* 给正文区一个浅灰色背景，拒绝“悬空感” */
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.2s;
+  }
+  
+  .content-group:focus-within {
+    background: #ffffff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); /* 聚焦时背景变白，边框发光 */
+  }
+
+  #contentInput {
+    font-size: 1.05rem;
+    line-height: 1.8;
+    resize: vertical;
+    min-height: 400px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  /* ========================================= */
+  /* 悬浮操作栏与按钮 */
+  /* ========================================= */
+  .action-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2.5rem;
+  }
+
+  .publish-btn { 
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #0f172a; /* 极客黑 */
+    color: white; 
+    border: none; 
+    padding: 0.9rem 2.5rem; 
+    font-size: 1.1rem; 
+    border-radius: 12px; 
+    cursor: pointer; 
+    font-weight: 700; 
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  }
+
+  .publish-btn:hover:not(:disabled) { 
+    background-color: #2563eb; /* 悬浮变亮蓝 */
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+  }
+  
+  .publish-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  }
+
+  .publish-btn:disabled {
+    background-color: #94a3b8;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  /* 响应式调整 */
+  @media (max-width: 640px) {
+    .meta-group {
+      flex-direction: column;
+      gap: 1rem;
     }
-    .submit-btn:hover { background-color: #0056b3; }
-    #message { margin-top: 20px; font-weight: bold; text-align: center; }
+    .publish-wrapper {
+      padding: 1.5rem 1rem 3rem;
+    }
+    .editor-card {
+      padding: 1.5rem;
+    }
+    #titleInput {
+      font-size: 1.8rem;
+    }
+    .content-group {
+      padding: 1rem;
+    }
+  }
 </style>
 
 <script>
-    // 引入全局鉴权工具函数
     import { checkAuth } from '../utils/auth';
 
-    // 💡 必须监听 astro:page-load，确保每次进入此页面时脚本都能重新执行
-    document.addEventListener('astro:page-load', async () => {
-        
-        // 1. 调用统一的静默校验接口
+    async function initPublishPage() {
         const { isValid, token } = await checkAuth();
-        
-        // 2. 登录拦截：如果 Token 失效或被伪造，直接踢回首页（或登录页）
         if (!isValid) {
             alert("登录已过期或未登录，请先登录！");
             window.location.href = '/'; 
-            return; // 终止后续代码执行，保护表单逻辑不被挂载
+            return; 
         }
 
-        const form = document.getElementById('publish-form');
-        const msgBox = document.getElementById('message');
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const titleInput = document.getElementById('titleInput') as HTMLInputElement;
+        const categoryInput = document.getElementById('categoryInput') as HTMLInputElement;
+        const tagsInput = document.getElementById('tagsInput') as HTMLInputElement;
+        const contentInput = document.getElementById('contentInput') as HTMLTextAreaElement;
+        const publishBtn = document.getElementById('publishBtn');
 
-        // 3. 表单提交逻辑
-        if (form && msgBox) {
-            form.onsubmit = function(e) {
-                e.preventDefault(); 
-                
-                // 获取表单数据 (兼容 TypeScript 的类型断言写法)
-                const title = (document.getElementById('title') as HTMLInputElement).value;
-                const content = (document.getElementById('content') as HTMLTextAreaElement).value;
-                const category = (document.getElementById('category') as HTMLInputElement).value;
-                const tagsInput = (document.getElementById('tags') as HTMLInputElement).value;
+        if (!dropzone || !publishBtn) return;
 
-                const tagsArray = tagsInput.split(',')
-                                           .map(t => t.trim())
-                                           .filter(t => t !== '');
-                                           
-                msgBox.innerText = "正在发布中...";
-                msgBox.style.color = "#666";
+        dropzone.addEventListener('click', () => fileInput?.click());
 
-                // 发送发布请求，使用 checkAuth 返回的合法 token
-                fetch('http://localhost:8888/api/articles', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify({ 
-                        title: title, 
-                        content: content,
-                        category: category,
-                        tags: tagsArray
-                    })
-                })
-                .then(response => {
-                    // 补充防线：即使加载时 Token 有效，发布瞬间也可能恰好过期
-                    if (response.status === 401) {
-                        localStorage.removeItem('token');
-                        throw new Error('登录已过期，请重新登录');
-                    }
-                    if (!response.ok) throw new Error('发布失败，状态码：' + response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    msgBox.innerText = "✅ " + data.message + " (即将跳转到首页...)";
-                    msgBox.style.color = "green";
-                    setTimeout(() => { window.location.href = '/'; }, 1500);
-                })
-                .catch(error => {
-                    msgBox.innerText = "❌ " + error.message;
-                    msgBox.style.color = "red";
-                    if (error.message.includes('重新登录')) {
-                        setTimeout(() => { window.location.href = '/'; }, 1500);
-                    }
-                });
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0 && files[0].name.endsWith('.md')) {
+                handleFile(files[0]);
+            } else {
+                alert("请拖拽有效的 .md 文件！");
+            }
+        });
+
+        fileInput?.addEventListener('change', (e) => {
+            const target = e.target as HTMLInputElement;
+            if (target.files && target.files.length > 0) {
+                handleFile(target.files[0]);
+            }
+        });
+
+        function handleFile(file: File) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target?.result as string;
+                parseMarkdown(text, file.name);
             };
+            reader.readAsText(file);
         }
-    });
+
+        function parseMarkdown(text: string, fileName: string) {
+            const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+
+            if (match) {
+                const yamlStr = match[1];
+                const contentStr = match[2];
+                const meta = parseSimpleYAML(yamlStr);
+
+                if (meta.title) titleInput.value = meta.title;
+                if (meta.category) categoryInput.value = meta.category;
+                
+                if (Array.isArray(meta.tags)) {
+                    tagsInput.value = meta.tags.join(', ');
+                } else if (meta.tags) {
+                    tagsInput.value = meta.tags; 
+                }
+
+                contentInput.value = contentStr.trim();
+                dropzone.innerHTML = `<p style="color: #059669; font-weight: 700;">✅ 解析成功：${fileName}</p>`;
+            } else {
+                contentInput.value = text;
+                dropzone.innerHTML = `<p style="color: #2563eb; font-weight: 600;">ℹ️ 文件已导入（未检测到 YAML 元数据）</p>`;
+            }
+        }
+
+        function parseSimpleYAML(yamlText: string): Record<string, any> {
+            const result: Record<string, any> = {};
+            const lines = yamlText.split('\n');
+            
+            lines.forEach(line => {
+                const colonIdx = line.indexOf(':');
+                if (colonIdx > -1) {
+                    const key = line.slice(0, colonIdx).trim();
+                    let value = line.slice(colonIdx + 1).trim();
+                    value = value.replace(/^["'](.*)["']$/, '$1');
+                    
+                    if (value.startsWith('[') && value.endsWith(']')) {
+                        const itemsStr = value.slice(1, -1);
+                        const items = itemsStr.split(',').map(i => i.trim().replace(/^["'](.*)["']$/, '$1'));
+                        result[key] = items.filter(i => i !== ""); 
+                    } else {
+                        result[key] = value;
+                    }
+                }
+            });
+            return result;
+        }
+
+        publishBtn.onclick = function(e) {
+            e.preventDefault(); 
+            
+            const title = titleInput.value.trim();
+            const content = contentInput.value.trim();
+            const category = categoryInput.value.trim();
+            const tagsArray = tagsInput.value.split(',').map(t => t.trim()).filter(t => t !== '');
+
+            if (!title || !content) {
+                alert("标题和内容不能为空！");
+                return;
+            }
+                                       
+            const originalText = publishBtn.innerHTML;
+            publishBtn.innerHTML = "⏳ 正在发布...";
+            (publishBtn as HTMLButtonElement).disabled = true;
+
+            fetch('http://localhost:8888/api/articles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ 
+                    title: title, 
+                    content: content,
+                    category: category,
+                    tags: tagsArray
+                })
+            })
+            .then(response => {
+                if (response.status === 401) {
+                    localStorage.removeItem('token');
+                    throw new Error('登录已过期，请重新登录');
+                }
+                if (!response.ok) throw new Error('发布失败，状态码：' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                alert("✅ " + data.message);
+                window.location.href = '/';
+            })
+            .catch(error => {
+                alert("❌ " + error.message);
+                publishBtn.innerHTML = originalText;
+                (publishBtn as HTMLButtonElement).disabled = false;
+                if (error.message.includes('重新登录')) {
+                    window.location.href = '/';
+                }
+            });
+        };
+    }
+
+    document.addEventListener('astro:page-load', initPublishPage);
 </script>
