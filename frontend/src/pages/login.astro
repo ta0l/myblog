@@ -55,7 +55,7 @@ import Layout from '../layouts/Layout.astro';
             })
             .then(data => {
                 // 登录成功，将 Token 存入本地
-                localStorage.setItem('blog_token', data.token);
+                localStorage.setItem('token', data.token);
                 msgBox.innerText = "✅ 登录成功！正在跳转...";
                 msgBox.style.color = "green";
                 

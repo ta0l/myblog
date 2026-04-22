@@ -1,9 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 // src/layouts/Layout.astro
-// 接收外部传进来的网页标题
 const { title } = Astro.props;
-// 获取当前 URL 的路径，用于点亮对应的导航按钮
 const currentPath = Astro.url.pathname;
 ---
 
@@ -24,14 +22,16 @@ const currentPath = Astro.url.pathname;
             <div class="nav-menu">
                 <a href="/" class={currentPath === '/' ? 'active' : ''}>首页</a>
                 <a href="/explore" class={currentPath === '/explore' ? 'active' : ''}>分类与标签</a>
+                <a href="/moments" class={currentPath === '/moments' ? 'active' : ''}>动态</a>
             </div>
 
             <div class="nav-actions">
                 <a href="/publish" id="nav-publish-btn" class="publish-btn" style="display: none;">写文章</a>
-                <a href="#" id="nav-logout-btn" class="logout-btn" style="display: none;">退出登录</a>
+                <button id="nav-logout-btn" class="logout-btn" style="display: none; cursor: pointer;">退出登录</button>
             </div>
         </div>
     </nav>
+
     <main class="main-content">
         <slot /> 
     </main>
@@ -46,6 +46,11 @@ const currentPath = Astro.url.pathname;
             </div>
         </div>
     </div>
+
+    <div id="global-lightbox" class="lightbox-overlay" style="display: none;">
+        <img id="lightbox-img" src="" alt="查看原图" />
+    </div>
+
 </body>
 </html>
 
@@ -60,170 +65,114 @@ const currentPath = Astro.url.pathname;
         background-color: var(--bg-color);
         margin: 0; padding: 0; color: var(--text-color);
     }
-   /* ---------------- 导航栏高级 UI 样式 ---------------- */
-    .navbar { 
-        /* 固定在顶部，增加毛玻璃特效 */
-        position: sticky; 
-        top: 0; 
-        z-index: 1000;
-        background: rgba(255, 255, 255, 0.85); 
-        backdrop-filter: blur(12px); 
-        -webkit-backdrop-filter: blur(12px);
-        box-shadow: 0 1px 0 rgba(0,0,0,0.05); 
-    }
 
-    .nav-content { 
-        max-width: 1000px; /* 稍微放宽一点，显得更大气 */
-        margin: 0 auto; 
-        height: 70px; /* 增加导航栏高度 */
-        padding: 0 20px; 
-        display: grid; 
-        /* 核心魔法：左侧占满剩余空间，中间按内容宽度，右侧占满剩余空间，实现绝对居中 */
-        grid-template-columns: 1fr auto 1fr; 
-        align-items: center; 
-    }
+    /* 所有正文区域的图片鼠标手势提示 */
+    main img { cursor: zoom-in; max-width: 100%; height: auto; transition: opacity 0.2s; }
+    main img:hover { opacity: 0.9; }
 
-    /* 左侧区域对齐 */
+    /* ---------------- 导航栏样式 (保留并优化) ---------------- */
+    .navbar { position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); box-shadow: 0 1px 0 rgba(0,0,0,0.05); }
+    .nav-content { max-width: 1000px; margin: 0 auto; height: 70px; padding: 0 20px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
     .nav-brand { justify-self: start; }
-    .logo { text-decoration: none; font-size: 1.4em; font-weight: 800; color: #2c3e50; letter-spacing: -0.5px;}
-
-    /* 中间区域对齐与样式 */
-    .nav-menu { 
-        justify-self: center; 
-        display: flex; 
-        gap: 30px; /* 按钮之间的间距 */
-    }
-    .nav-menu a { 
-        text-decoration: none; 
-        color: #666; 
-        font-weight: 500; 
-        font-size: 1.1em; /* 字体放大 */
-        padding: 8px 16px; 
-        border-radius: 8px; 
-        transition: all 0.2s ease; 
-    }
-    .nav-menu a:hover { color: var(--accent-color); background: rgba(0, 102, 204, 0.05); }
-    /* 当前页面高亮状态 */
+    .logo { text-decoration: none; font-size: 1.4em; font-weight: 800; color: #2c3e50; }
+    .nav-menu { justify-self: center; display: flex; gap: 30px; }
+    .nav-menu a { text-decoration: none; color: #666; font-weight: 500; padding: 8px 16px; border-radius: 8px; }
     .nav-menu a.active { color: var(--accent-color); font-weight: bold; background: rgba(0, 102, 204, 0.1); }
+    .nav-actions { justify-self: end; display: flex; gap: 15px; }
+    .publish-btn { background: var(--accent-color); color: white !important; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-weight: bold; }
+    .logout-btn { color: #dc3545; font-weight: 600; border: 1px solid rgba(220, 53, 69, 0.4); border-radius: 20px; background: transparent; padding: 7px 15px; }
 
-    /* 右侧区域对齐与样式 */
-    .nav-actions { 
-        justify-self: end; 
-        display: flex; 
-        align-items: center; 
-        gap: 15px; 
+    /* ---------------- 🌟 全局灯箱样式 ---------------- */
+    .lightbox-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(10px);
+        z-index: 10000; display: flex; justify-content: center; align-items: center;
+        cursor: zoom-out; opacity: 0; transition: opacity 0.3s ease;
     }
-    .publish-btn { background: var(--accent-color); color: white !important; padding: 8px 16px; border-radius: 20px; text-decoration: none; font-weight: bold; font-size: 0.95em; transition: background 0.2s;}
-    .publish-btn:hover { background: #0052a3; }
-    .logout-btn { 
-        color: #dc3545; 
-        font-weight: 600; 
-        text-decoration: none; 
-        font-size: 0.95em; 
-        padding: 7px 15px; /* 与写文章按钮保持一致的点击区域 */
-        border: 1px solid rgba(220, 53, 69, 0.4); /* 柔和的红色边框 */
-        border-radius: 20px; /* 统一的胶囊圆角 */
-        transition: all 0.2s ease; 
-        background: transparent;
+    .lightbox-overlay.active { opacity: 1; }
+    #lightbox-img { 
+        max-width: 90vw; max-height: 90vh; border-radius: 4px; 
+        box-shadow: 0 0 30px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.3s ease;
     }
-    
-    .logout-btn:hover { 
-        background: rgba(220, 53, 69, 0.08); /* 悬浮时泛起淡淡的红晕 */
-        border-color: #dc3545; /* 边框变清晰 */
-        text-decoration: none; /* 去掉以前难看的下划线 */
-    }
+    .lightbox-overlay.active #lightbox-img { transform: scale(1); }
 
-    /* 移动端简单适配：如果屏幕太小，就恢复成靠左排布 */
-    @media (max-width: 600px) {
-        .nav-content { display: flex; justify-content: space-between; height: auto; padding: 15px 20px; flex-wrap: wrap; gap: 15px; }
-        .nav-menu { order: 3; width: 100%; justify-content: center; }
-    }
-
-    /* ---------------- 自定义弹窗 UI 样式 ---------------- */
-    .modal-overlay {
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        /* 黑色半透明背景 + 强力毛玻璃模糊 */
-        background: rgba(0, 0, 0, 0.4);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        z-index: 9999;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        /* 加入简单的淡入动画 */
-        animation: fadeIn 0.2s ease-out;
-    }
-
-    .modal-box {
-        background: white;
-        padding: 40px;
-        border-radius: 16px;
-        text-align: center;
-        max-width: 320px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Q弹动画 */
-    }
-
-    .modal-icon { font-size: 3em; margin-bottom: 10px; }
-    
+    /* ---------------- 退出弹窗样式 ---------------- */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(8px); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+    .modal-box { background: white; padding: 40px; border-radius: 16px; text-align: center; max-width: 320px; }
     .modal-actions { display: flex; gap: 15px; justify-content: center; }
-    .modal-btn { padding: 10px 24px; border-radius: 8px; border: none; font-size: 1em; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+    .modal-btn { padding: 10px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
     .btn-cancel { background: #f1f3f5; color: #495057; }
-    .btn-cancel:hover { background: #e9ecef; }
     .btn-confirm { background: #dc3545; color: white; }
-    .btn-confirm:hover { background: #c82333; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(220,53,69,0.3); }
-
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 
 <script>
-    // 【关键修复 1】必须使用 astro:page-load，否则 ClientRouter 会让 JS 在切换页面时失效
-    document.addEventListener('astro:page-load', () => {
-        const token = localStorage.getItem('blog_token');
-        const publishBtn = document.getElementById('nav-publish-btn');
-        const logoutBtn = document.getElementById('nav-logout-btn');
+  import { checkAuth, clearAuth } from '../utils/auth';
+
+  // 1. 同步导航栏 UI
+  async function syncNavUI() {
+    const publishBtn = document.getElementById('nav-publish-btn');
+    const logoutBtn = document.getElementById('nav-logout-btn');
+    const { isValid } = await checkAuth();
+
+    if (isValid) {
+      if (publishBtn) publishBtn.style.display = 'inline-block';
+      if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    } else {
+      if (publishBtn) publishBtn.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+    }
+  }
+
+  // 2. 绑定全局交互事件 (退出、灯箱)
+  function bindGlobalEvents() {
+    const logoutBtn = document.getElementById('nav-logout-btn');
+    const modal = document.getElementById('logout-modal');
+    const confirmBtn = document.getElementById('modal-confirm-btn');
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+
+    const lightbox = document.getElementById('global-lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+
+    // --- 退出逻辑 ---
+    if (logoutBtn) {
+        logoutBtn.onclick = () => { if (modal) modal.style.display = 'flex'; };
+    }
+    if (confirmBtn) {
+        confirmBtn.onclick = () => { clearAuth(); window.location.href = '/'; };
+    }
+    if (cancelBtn) {
+        cancelBtn.onclick = () => { if (modal) modal.style.display = 'none'; };
+    }
+
+    // --- 🌟 全局灯箱点击逻辑 ---
+    // 使用事件委托，监听 body 内所有 img 的点击
+    document.body.onclick = (e) => {
+        const target = e.target;
         
-        // 获取自定义弹窗相关的 DOM 元素
-        const modal = document.getElementById('logout-modal');
-        const cancelBtn = document.getElementById('modal-cancel-btn');
-        const confirmBtn = document.getElementById('modal-confirm-btn');
-
-        // 如果已登录，显示导航栏上的管理员按钮
-        if (token) {
-            if (publishBtn) publishBtn.style.display = '';
-            if (logoutBtn) logoutBtn.style.display = '';
-        }
-
-        if (logoutBtn && modal) {
-            logoutBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                modal.style.display = 'flex';
-            });
-
-            // 2. 点击弹窗里的“取消”：隐藏弹窗
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', () => {
-                    modal.style.display = 'none';
-                });
+        // 如果点击的是 <main> 标签内的图片，且不是导航栏、弹窗等 UI 元素
+        if (target.tagName === 'IMG' && target.closest('main') && target.id !== 'lightbox-img') {
+            const src = target.getAttribute('src');
+            if (lightbox && lightboxImg) {
+                lightboxImg.src = src;
+                lightbox.style.display = 'flex';
+                setTimeout(() => lightbox.classList.add('active'), 10);
             }
-
-            // 3. 点击弹窗里的“确定退出”：删 Token 并跳回首页
-            if (confirmBtn) {
-                confirmBtn.addEventListener('click', () => {
-                    localStorage.removeItem('blog_token');
-                    window.location.href = '/'; // 强制跳回首页，触发全量刷新抹除状态
-                });
-            }
-            
-            // 4. 细节体验：点击弹窗周围的黑色半透明蒙层，也能关闭弹窗
-            modal.addEventListener('click', (e) => {
-                // 确保点的是蒙层本身，而不是弹窗里面的白框
-                if (e.target === modal) {
-                    modal.style.display = 'none';
-                }
-            });
         }
-    });
+        
+        // 如果点击的是激活状态的灯箱背景
+        if (lightbox && lightbox.classList.contains('active')) {
+            lightbox.classList.remove('active');
+            setTimeout(() => {
+                lightbox.style.display = 'none';
+                if (lightboxImg) lightboxImg.src = '';
+            }, 300);
+        }
+    };
+  }
+
+  // 监听 Astro 页面加载和过渡
+  document.addEventListener('astro:page-load', () => {
+    syncNavUI();
+    bindGlobalEvents();
+  });
 </script>

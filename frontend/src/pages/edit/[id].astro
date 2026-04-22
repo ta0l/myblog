@@ -64,62 +64,73 @@ const article = await response.json();
 </style>
 
 <script>
-    const form = document.getElementById('edit-form');
-    const msgBox = document.getElementById('message');
+    import { checkAuth } from '../../utils/auth';
 
-    // 页面加载时检查登录状态
-    document.addEventListener('DOMContentLoaded', () => {
-        if (!localStorage.getItem('blog_token')) {
-            alert("你还未登录，无权编辑！");
+    document.addEventListener('astro:page-load', async () => {
+        // 1. 每次进入页面，调用统一鉴权
+        const { isValid, token } = await checkAuth();
+
+        // 2. 如果 Token 失效，踢回登录页
+        if (!isValid) {
+            alert("登录已过期或未登录，无权编辑！");
             window.location.href = '/login';
+            return;
+        }
+
+        const form = document.getElementById('edit-form');
+        const msgBox = document.getElementById('message');
+
+        // 3. 绑定提交事件 (使用 isValid 后获取的可靠 token)
+        if (form && msgBox) {
+            form.onsubmit = function(e) {
+                e.preventDefault(); 
+                
+                const articleId = form.getAttribute('data-id'); 
+                const title = (document.getElementById('title') as HTMLInputElement).value;
+                const content = (document.getElementById('content') as HTMLTextAreaElement).value;
+                const category = (document.getElementById('category') as HTMLInputElement).value;
+                const tagsInput = (document.getElementById('tags') as HTMLInputElement).value;
+                
+                const tagsArray = tagsInput.split(',').map(t => t.trim()).filter(t => t !== '');
+                
+                msgBox.innerText = "正在保存修改...";
+                msgBox.style.color = "#666";
+
+                // 发起修改请求
+                fetch(`http://localhost:8888/api/articles/${articleId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token 
+                    },
+                    body: JSON.stringify({ 
+                        title: title, 
+                        content: content,
+                        category: category,
+                        tags: tagsArray
+                    })
+                })
+                .then(response => {
+                    if (response.status === 401) {
+                        localStorage.removeItem('token');
+                        throw new Error('登录已过期，请重新登录');
+                    }
+                    if (!response.ok) throw new Error('保存失败，状态码：' + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    msgBox.innerText = "✅ " + data.message + " (即将跳转...)";
+                    msgBox.style.color = "green";
+                    setTimeout(() => { window.location.href = `/post/${articleId}`; }, 1000);
+                })
+                .catch(error => {
+                    msgBox.innerText = "❌ " + error.message;
+                    msgBox.style.color = "red";
+                    if (error.message.includes('重新登录')) {
+                        setTimeout(() => { window.location.href = '/login'; }, 1500);
+                    }
+                });
+            };
         }
     });
-
-    if (form && msgBox) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault(); 
-            
-            const token = localStorage.getItem('blog_token');
-            const articleId = form.getAttribute('data-id'); // 拿到绑定的 ID
-            const title = (document.getElementById('title') as HTMLInputElement).value;
-            const content = (document.getElementById('content') as HTMLTextAreaElement).value;
-            const category = (document.getElementById('category') as HTMLInputElement).value;
-            const tagsInput = (document.getElementById('tags') as HTMLInputElement).value;
-            const tagsArray = tagsInput.split(',').map(t => t.trim()).filter(t => t !== '');
-            msgBox.innerText = "正在保存修改...";
-            msgBox.style.color = "#666";
-
-            // 注意使用 PUT 方法
-            fetch(`http://localhost:8888/api/articles/${articleId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token 
-                },
-                body: JSON.stringify({ 
-                    title: title, 
-                    content: content,
-                    category: category,
-                    tags: tagsArray
-                })
-            })
-            .then(response => {
-                if (response.status === 401) {
-                    localStorage.removeItem('blog_token');
-                    throw new Error('登录已过期，请重新登录');
-                }
-                if (!response.ok) throw new Error('保存失败，状态码：' + response.status);
-                return response.json();
-            })
-            .then(data => {
-                msgBox.innerText = "✅ " + data.message + " (即将跳转...)";
-                msgBox.style.color = "green";
-                setTimeout(() => { window.location.href = `/post/${articleId}`; }, 1000);
-            })
-            .catch(error => {
-                msgBox.innerText = "❌ " + error.message;
-                msgBox.style.color = "red";
-            });
-        });
-    }
 </script>

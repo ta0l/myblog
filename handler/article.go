@@ -3,6 +3,7 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -25,18 +26,17 @@ func GetArticleAPI(w http.ResponseWriter, r *http.Request) {
 	article, err := storage.GetArticleByID(id)
 
 	if err != nil {
+		slog.Error("查询单篇文章失败", slog.String("id", id), slog.Any("error", err))
 		respondWithError(w, http.StatusInternalServerError, "服务器内部错误")
 		return
 	}
+
 	if article == nil {
 		respondWithError(w, http.StatusNotFound, "文章不存在")
 		return
 	}
 
-	// 关键：告诉浏览器或前端框架，我返回的是纯 JSON 数据
 	w.Header().Set("Content-Type", "application/json")
-
-	// 将 Go 语言的 article 结构体，自动编码为 JSON 并写入响应流
 	json.NewEncoder(w).Encode(article)
 }
 
@@ -59,6 +59,11 @@ func GetArticlesAPI(w http.ResponseWriter, r *http.Request) {
 	// 调用底层查询
 	result, err := storage.GetAllArticles(category, tag, keyword, page, pageSize)
 	if err != nil {
+		slog.Error("获取文章列表查询失败",
+			slog.String("category", category),
+			slog.String("tag", tag),
+			slog.String("keyword", keyword),
+			slog.Any("error", err))
 		respondWithError(w, http.StatusInternalServerError, "获取文章列表失败")
 		return
 	}
@@ -87,9 +92,9 @@ func CreateArticleAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 调用带有事务的全新数据层函数
 	id, err := storage.CreateArticleWithTags(req.Title, req.Content, req.Category, req.Tags)
 	if err != nil {
+		slog.Error("保存文章及关联数据失败", slog.String("title", req.Title), slog.Any("error", err))
 		respondWithError(w, http.StatusInternalServerError, "保存文章及关联数据失败")
 		return
 	}
@@ -122,6 +127,7 @@ func UpdateArticleAPI(w http.ResponseWriter, r *http.Request) {
 	// 调用带有事务的更新函数
 	err := storage.UpdateArticleWithTags(id, req.Title, req.Content, req.Category, req.Tags)
 	if err != nil {
+		slog.Error("更新文章数据失败", slog.String("id", id), slog.Any("error", err))
 		respondWithError(w, http.StatusInternalServerError, "更新失败")
 		return
 	}
@@ -138,8 +144,10 @@ func DeleteArticleAPI(w http.ResponseWriter, r *http.Request) {
 	err := storage.DeleteArticle(id)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			slog.Warn("尝试删除不存在的文章", slog.String("id", id))
 			respondWithError(w, http.StatusNotFound, "要删除的文章不存在")
 		} else {
+			slog.Error("删除文章数据库执行失败", slog.String("id", id), slog.Any("error", err))
 			respondWithError(w, http.StatusInternalServerError, "删除失败")
 		}
 		return
@@ -152,6 +160,7 @@ func DeleteArticleAPI(w http.ResponseWriter, r *http.Request) {
 func GetSidebarAPI(w http.ResponseWriter, r *http.Request) {
 	meta, err := storage.GetSidebarMeta()
 	if err != nil {
+		slog.Error("获取侧边栏数据统计失败", slog.Any("error", err))
 		respondWithError(w, http.StatusInternalServerError, "获取侧边栏数据失败")
 		return
 	}

@@ -1,0 +1,15 @@
+server:
+  port: "8888" # 启动后端服务的端口
+
+database:
+  db_file: "blog.db" # 数据库文件
+
+auth:
+  jwt_secret: "test-0111616" # 你的 JWT 盐值
+  admin_user: "账号"                         # 后台登录账号
+  admin_pass: "密码"                        # 后台登录密码
+
+cos:
+  bucket_url: "你的存储库地址"
+  secret_id: "密钥id"
+  secret_key: "密钥key"

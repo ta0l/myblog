@@ -342,7 +342,7 @@ z-index: 10;
     // ==========================================
     // 1. 挂载管理员与删除按钮逻辑
     // ==========================================
-    const token = localStorage.getItem('blog_token');
+    const token = localStorage.getItem('token');
     const adminActions = document.getElementById('admin-actions');
     const deleteBtn = document.getElementById('delete-action-btn');
 
@@ -362,7 +362,7 @@ z-index: 10;
                 })
                 .then(response => {
                     if (response.status === 401) {
-                        localStorage.removeItem('blog_token');
+                        localStorage.removeItem('token');
                         throw new Error('登录状态已失效，请重新登录');
                     }
                     if (!response.ok) throw new Error('删除失败');

@@ -35,14 +35,15 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <style>
+    /* ... 保留你原有的全部样式 ... */
     .editor-container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .form-group { margin-bottom: 25px; }
     label { display: block; margin-bottom: 8px; font-weight: 600; }
     input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
     textarea { height: 400px; resize: vertical; font-family: ui-monospace, monospace; line-height: 1.5; }
     .submit-btn { 
-        display: block;        /* 必须先将其变为块级元素 */
-        margin-left: auto;     /* 核心魔法：利用 auto 自动占据左侧所有剩余空间，将按钮推向右侧 */
+        display: block;        
+        margin-left: auto;     
         background-color: var(--accent-color); 
         color: white; 
         border: none; 
@@ -57,26 +58,31 @@ import Layout from '../layouts/Layout.astro';
 </style>
 
 <script>
-    // 💡 核心修复：必须监听 astro:page-load，确保每次进入此页面时脚本都能重新执行
-    document.addEventListener('astro:page-load', () => {
-        const token = localStorage.getItem('blog_token');
+    // 引入全局鉴权工具函数
+    import { checkAuth } from '../utils/auth';
+
+    // 💡 必须监听 astro:page-load，确保每次进入此页面时脚本都能重新执行
+    document.addEventListener('astro:page-load', async () => {
         
-        // 1. 登录拦截：如果没登录，直接踢回首页
-        if (!token) {
-            alert("你还未登录，请先登录！");
+        // 1. 调用统一的静默校验接口
+        const { isValid, token } = await checkAuth();
+        
+        // 2. 登录拦截：如果 Token 失效或被伪造，直接踢回首页（或登录页）
+        if (!isValid) {
+            alert("登录已过期或未登录，请先登录！");
             window.location.href = '/'; 
-            return; // 终止后续代码执行
+            return; // 终止后续代码执行，保护表单逻辑不被挂载
         }
 
         const form = document.getElementById('publish-form');
         const msgBox = document.getElementById('message');
 
-        // 2. 表单提交逻辑
+        // 3. 表单提交逻辑
         if (form && msgBox) {
-            // 每次页面加载时，重新绑定 submit 事件，避免事件侦听器丢失
             form.onsubmit = function(e) {
                 e.preventDefault(); 
                 
+                // 获取表单数据 (兼容 TypeScript 的类型断言写法)
                 const title = (document.getElementById('title') as HTMLInputElement).value;
                 const content = (document.getElementById('content') as HTMLTextAreaElement).value;
                 const category = (document.getElementById('category') as HTMLInputElement).value;
@@ -89,6 +95,7 @@ import Layout from '../layouts/Layout.astro';
                 msgBox.innerText = "正在发布中...";
                 msgBox.style.color = "#666";
 
+                // 发送发布请求，使用 checkAuth 返回的合法 token
                 fetch('http://localhost:8888/api/articles', {
                     method: 'POST',
                     headers: {
@@ -103,8 +110,9 @@ import Layout from '../layouts/Layout.astro';
                     })
                 })
                 .then(response => {
+                    // 补充防线：即使加载时 Token 有效，发布瞬间也可能恰好过期
                     if (response.status === 401) {
-                        localStorage.removeItem('blog_token');
+                        localStorage.removeItem('token');
                         throw new Error('登录已过期，请重新登录');
                     }
                     if (!response.ok) throw new Error('发布失败，状态码：' + response.status);

@@ -1,25 +1,32 @@
 package main
 
 import (
-	"fmt"
-	"my_blog/router" // 引入路由包
+	"log/slog"
+	"my_blog/config" // 引入你的 config 包
+	"my_blog/pkg/logger"
+	"my_blog/router"
 	"my_blog/storage"
 	"net/http"
+	"os"
 )
 
 func main() {
-	// 1. 初始化数据库
+	// 1. 最先初始化配置
+	config.InitConfig()
+	logger.InitLogger()
+
+	// 2. 初始化数据库 (稍后需修改 sqlite.go 使用 config)
 	storage.InitDB()
 
-	// 3. 获取配置好的路由引擎
+	// 3. 注册路由
 	r := router.SetupRouter()
 
-	// 4. 启动服务
-	fmt.Println("🚀 博客服务器已启动")
-	fmt.Println("👉 测试你的数据库: http://localhost:8888/post/1")
-
-	err := http.ListenAndServe(":8888", r)
-	if err != nil {
-		fmt.Println("服务器启动失败:", err)
+	// 4. 启动服务 (使用 config 里的端口)
+	port := ":" + config.Cfg.Server.Port
+	slog.Info("博客后端服务已启动", slog.String("port", config.Cfg.Server.Port))
+	if err := http.ListenAndServe(port, r); err != nil {
+		// 记录致命错误并退出
+		slog.Error("服务器异常退出", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
