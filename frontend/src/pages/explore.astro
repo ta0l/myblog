@@ -7,7 +7,10 @@ const response = await fetch('http://localhost:8888/api/sidebar');
 const data = await response.json();
 ---
 
-<Layout title="探索发现">
+<Layout 
+    title="分类|标签" 
+    description="本站文章所有分类和标签"
+>
     <div class="explore-container">
         <div class="header" style="text-align: center; margin-bottom: 40px;">
             <!-- <h1>🧭 探索发现</h1> -->

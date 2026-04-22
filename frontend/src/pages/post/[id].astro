@@ -1,16 +1,17 @@
 ---
 export const prerender = false;
+import Layout from '../../layouts/Layout.astro';
 // 🟩 服务端脚本区
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
-import rehypeSlug from 'rehype-slug'; // 自动给 h1-h6 添加 id
+import rehypeSlug from 'rehype-slug'; 
 import rehypeKatex from 'rehype-katex';
 import rehypePrettyCode from 'rehype-pretty-code';
 import rehypeStringify from 'rehype-stringify';
-import GithubSlugger from 'github-slugger'; // 用于保证目录 href 和标题 id 完全一致
+import GithubSlugger from 'github-slugger'; 
 import 'github-markdown-css/github-markdown.css';
 
 const { id } = Astro.params;
@@ -25,21 +26,14 @@ if (!response.ok) {
 const article = await response.json();
 const rawContent = article.content || "暂无内容";
 
-// ==========================================
-// 步骤 A：预处理清洗文本 (修复加粗失效)
-// ==========================================
 let cleanContent = rawContent.replace(/\*\*\s*(.+?)\s*\*\*/g, '**$1**');
 cleanContent = cleanContent.replace(/\*\*(.*?)([:：,，.。!！?？;；]+)\*\*/g, '**$1**$2');
 
-// ==========================================
-// 步骤 B：提取目录 (TOC)
-// ==========================================
 const headings = [];
-const slugger = new GithubSlugger(); // 实例化 slugger
+const slugger = new GithubSlugger(); 
 const headingRegex = /^(#{1,3})\s+(.+)$/gm;
 let match;
 
-// 重置 slugger 状态，避免热更新时产生带 -1 后缀的重复 id
 slugger.reset(); 
 
 while ((match = headingRegex.exec(cleanContent)) !== null) {
@@ -47,298 +41,361 @@ while ((match = headingRegex.exec(cleanContent)) !== null) {
     headings.push({
         depth: match[1].length,
         text: text,
-        // github-slugger 会把中文或英文转换为合法的 id
         slug: slugger.slug(text) 
     });
 }
 
-
-// ==========================================
-// 步骤 C：执行 Unified 管道渲染
-// ==========================================
 const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
     .use(remarkRehype, { allowDangerousHtml: true })
-    .use(rehypeSlug) // 核心！自动为正文的标题生成与 github-slugger 完全一致的 id
-    .use(rehypeKatex, { 
-        strict: false // 也可以写成 strict: "ignore"
-    })
+    .use(rehypeSlug) 
+    .use(rehypeKatex, { strict: false })
     .use(rehypePrettyCode, {
         theme: 'github-dark',
         keepBackground: true,
     })
     .use(rehypeStringify, { allowDangerousHtml: true });
 
+const seoDescription = cleanContent
+    .replace(/[#*`>\[\]\(\)-]/g, '') 
+    .replace(/\n/g, ' ')             
+    .substring(0, 120) + '...';
+
+const seoKeywords = article.tags && article.tags.length > 0 
+    ? article.tags.join(',') 
+    : "文章,技术";
+
 const vfile = await processor.process(cleanContent);
 const contentHTML = vfile.toString();
 
-const publishDate = article.created_at.split('T')[0];
+// 格式化日期：将 2026-04-22T... 格式化为 2026年4月22日
+const dateObj = new Date(article.created_at);
+const publishDate = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
 ---
 
-<html lang="zh-CN">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>{article.title} - 我的 Astro 博客</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
-</head>
-<body>
-    <nav class="navbar">
-        <a href="/" class="back-link">← 返回首页</a>
-        
-        <form action="/" method="GET" class="nav-search-box">
-        <input type="text" name="q" placeholder="全站搜索..." required />
-        <button type="submit">🔍</button>
-        </form>
-    </nav>
+<Layout title={article.title} description={seoDescription} keywords={seoKeywords}>
+    
+    <!-- <div class="post-header-bg"></div> -->
 
     <div class="layout-wrapper">
-    <aside class="toc-aside">
-        <h3>目录</h3>
-        <ul class="toc-list">
-            {headings.map((h) => (
-                <li class={`toc-depth-${h.depth}`}>
-                    <a href={`#${h.slug}`}>{h.text}</a>
-                </li>
-            ))}
-        </ul>
-    </aside>
+        <aside class="toc-aside">
+            <h3 class="toc-title">目录</h3>
+            <ul class="toc-list">
+                {headings.map((h) => (
+                    <li class={`toc-depth-${h.depth}`}>
+                        <a href={`#${h.slug}`}>{h.text}</a>
+                    </li>
+                ))}
+            </ul>
+        </aside>
 
-    <main class="article-container">
-        <header class="article-header">
-            <h1>{article.title}</h1>
-            
-            <div class="meta-info">
-                <span class="category-badge">📁 {article.category}</span>
-                <span>📅 {article.created_at.split('T')[0]}</span>
-            </div>
-
-            <div id="admin-actions" style="display: none; justify-content: center; gap: 15px; margin-top: 15px; margin-bottom: 20px;">
-                <a href={`/edit/${article.id}`} class="edit-action-btn">✏️ 编辑文章</a>
-                <button id="delete-action-btn" data-id={article.id} class="delete-action-btn">🗑️ 删除文章</button>
-            </div>
-
-            {article.tags && article.tags.length > 0 && (
-                <div class="tags-container">
-                    {article.tags.map((tag: string) => (
-                        <span class="tag-badge">#{tag}</span>
-                    ))}
+        <main class="article-container">
+            <header class="article-header">
+                <div class="meta-top">
+                    <a href={`/explore?category=${article.category}`} class="category-link">{article.category}</a>
+                    <span class="meta-dot">•</span>
+                    <time class="publish-date">{publishDate}</time>
                 </div>
-            )}
-        </header>
+                
+                <h1 class="post-title">{article.title}</h1>
+                
+                {article.tags && article.tags.length > 0 && (
+                    <div class="tags-container">
+                        {article.tags.map((tag: string) => (
+                            <a href={`/explore?tag=${tag}`} class="tag-badge">#{tag}</a>
+                        ))}
+                    </div>
+                )}
 
-        <article class="markdown-body" set:html={contentHTML} />
-    </main>
-</div>
+                <div id="admin-actions" class="admin-actions" style="display: none;">
+                    <a href={`/edit/${article.id}`} class="admin-btn edit-btn">编辑</a>
+                    <button id="delete-action-btn" data-id={article.id} class="admin-btn delete-btn">删除</button>
+                </div>
+            </header>
 
-    
-</body>
-</html>
+            <article class="markdown-body" set:html={contentHTML} />
+        </main>
+    </div>
+</Layout>
 
 <style is:global>
-    /* is:global 告诉 Astro 这些样式全局生效，因为 Markdown 渲染出的标签需要全局样式匹配 */
-    
+    /* ========================================= */
+    /* 全局变量与基础覆盖 */
+    /* ========================================= */
     :root {
-        --text-color: #2c3e50;
-        --bg-color: #ffffff;
-        --accent-color: #0066cc;
-        --border-color: #eaecef;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --bg-color: #f8fafc;
+        --accent-color: #2563eb;
+        --border-color: #e2e8f0;
     }
 
     body { 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
-        color: var(--text-color);
-        background-color: #f8f9fa;
-        margin: 0;
-        padding: 0;
-        line-height: 1.6;
+        background-color: var(--bg-color);
     }
 
-    .navbar {
-        background: var(--bg-color);
-        padding: 15px 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        display: flex; 
-        justify-content: center; /* 核心修改：让导航栏内的主要内容（搜索框）强行居中 */
-        align-items: center;
-        position: sticky;
-        top: 0;
-        z-index: 100;
+    /* 顶部装饰背景条 */
+    .post-header-bg {
+        width: 100%;
+        height: 180px;
+        background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+        position: absolute;
+        top: 70px; /* 避开 navbar 的高度 */
+        left: 0;
+        z-index: 0;
     }
 
-    .nav-search-box {
+    /* ========================================= */
+    /* 核心双栏布局 */
+    /* ========================================= */
+    .layout-wrapper {
         display: flex;
-        align-items: center;
-        background: #f1f3f5;
-        border-radius: 20px; /* 圆角胶囊风格 */
-        padding: 6px 14px;
-        border: 1px solid transparent;
-        transition: all 0.3s ease;
+        max-width: 1100px;
+        margin: 60px auto 100px;
+        padding: 0 20px;
+        align-items: flex-start; 
+        gap: 40px;
+        position: relative; /* 为了能盖住背景条 */
+        z-index: 1;
     }
 
-    .nav-search-box:focus-within {
-        border-color: var(--accent-color);
-        background: white;
-        box-shadow: 0 0 0 3px rgba(0,102,204,0.1);
-    }
-
-    .nav-search-box input:focus {
-        width: 220px; 
-    }
-
-    .nav-search-box button {
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 1.1em;
-        color: #888;
-        padding: 0;
-        margin-left: 5px;
-        transition: transform 0.2s;
-    }
-    
-    .nav-search-box button:hover {
-        transform: scale(1.1); /* 鼠标悬浮放大放大镜 */
-    }
-
-    .back-link {
-        position: absolute; /* 核心修改：将返回按钮抽离文档流，不干扰搜索框的居中 */
-        left: 20px;         /* 强制锚定在距离左侧 20px 的位置 */
-        text-decoration: none;
-        color: var(--accent-color);
-        font-weight: 500;
-        transition: color 0.2s;
-    }
-    .back-link:hover { color: #004499; }
-
+    /* ========================================= */
+    /* 文章主体区域 */
+    /* ========================================= */
     .article-container { 
-        max-width: 760px; 
-        margin: 40px auto; 
-        padding: 40px; 
-        background: var(--bg-color);
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        flex: 1; 
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02);
+        padding: 3.5rem 4rem;
+        min-width: 0; /* 防止因为长单词撑破 Flex 布局 */
     }
 
     .article-header {
-        text-align: center;
-        margin-bottom: 40px;
-        padding-bottom: 20px;
-        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 3.5rem;
     }
 
-    .article-header h1 {
-        font-size: 2.2em;
-        margin-bottom: 15px;
+    /* 顶部小红书风/Medium风元数据 */
+    .meta-top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--text-secondary);
     }
-    .layout-wrapper {
-    display: flex;
-    max-width: 1200px; /* 放宽总体宽度以容纳侧边栏 */
-    margin: 40px auto;
-    padding: 0 20px;
-    align-items: flex-start; /* 使得侧边栏不会被拉伸 */
-    gap: 30px;
-}
 
-.toc-aside {
-    position: sticky;
-    top: 40px; /* 距离页面顶部 40px 开始固定不动 */
-    width: 260px;
-    background: var(--bg-color);
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    max-height: calc(100vh - 80px); /* 防止目录过长，开启内部滚动 */
-    overflow-y: auto;
-}
-
-.toc-list { list-style: none; padding-left: 0; }
-.toc-list li { margin-bottom: 8px; }
-.toc-depth-1 { font-weight: bold; }
-.toc-depth-2 { padding-left: 15px; }
-.toc-depth-3 { padding-left: 30px; font-size: 0.85em; }
-
-/* 基础链接样式：移除原本预留的左侧边框和缩进 */
-.toc-list a { 
-    text-decoration: none; 
-    color: #6a737d; 
-    transition: all 0.2s ease; 
-    display: block; 
-    font-size: 0.9em; 
-    padding: 6px 12px; /* 增加四周的内边距，为了让背景色有足够的空间 */
-    border-radius: 6px; /* 增加一点圆角，显得更现代 */
-    border: none; /* 明确移除任何边框 */
-}
-.toc-list a.active {
-    color: #0066cc;
-    background: rgba(0, 102, 204, 0.1);
-    font-weight: 600;
-}
-/* 鼠标悬浮时的轻微反馈 */
-.toc-list a:hover { 
-    color: var(--accent-color); 
-    background: rgba(0, 102, 204, 0.05); /* 极浅的背景 */
-}
-
-.article-container { 
-    flex: 1; /* 占据剩下的所有空间 */
-    margin: 0; /* 移除原来的 margin auto */
-    /* 保留原有的 padding, bg, box-shadow 即可 */
-}
-
-.meta { color: #6a737d; font-size: 0.9em; display: flex; justify-content: center; gap: 20px; }
-.meta-info { display: flex; gap: 15px; justify-content: center; margin-bottom: 15px; color: #666; font-size: 0.9em; }
-.category-badge { color: var(--accent-color); font-weight: bold; }
-.tags-container { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.tag-badge { background-color: #e9ecef; color: #495057; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; transition: background 0.2s; }
-.tag-badge:hover { background-color: #dee2e6; cursor: pointer; }
-.edit-action-btn { background-color: #ffc107; color: #000; padding: 6px 15px; border-radius: 4px; text-decoration: none; font-size: 0.9em; font-weight: bold; }
-.edit-action-btn:hover { background-color: #e0a800; }
-.delete-action-btn { background-color: #dc3545; color: #fff; padding: 6px 15px; border-radius: 4px; border: none; font-size: 0.9em; font-weight: bold; cursor: pointer; }
-.delete-action-btn:hover { background-color: #c82333; }
-
-.copy-code-btn {
-position: absolute;
-top: 12px;
-right: 12px;
-background: rgba(255, 255, 255, 0.1); /* 半透明白色背景 */
-border: 1px solid rgba(255, 255, 255, 0.2);
-color: #e6edf3; /* ★ 替换为亮灰色文字，在黑色背景上极度清晰 ★ */
-padding: 5px 10px;
-border-radius: 6px;
-font-size: 0.85em;
-font-weight: 500;
-cursor: pointer;
-transition: all 0.2s ease;
-opacity: 0;
-backdrop-filter: blur(4px); /* 可选：毛玻璃效果 */
-z-index: 10;
-}
-
-.markdown-body pre:hover .copy-code-btn {
-    opacity: 1;
-}
-
-.copy-code-btn:hover { 
-    background: rgba(255, 255, 255, 0.25); 
-    color: #ffffff;
-}
-
-.copy-code-btn.copied { 
-    background: #238636; /* GitHub 风格的成功绿色 */
-    color: white; 
-    border-color: #2ea043; 
-    opacity: 1; 
-}
-
+    .category-link {
+        color: var(--accent-color);
+        text-decoration: none;
+        transition: opacity 0.2s;
+    }
+    .category-link:hover { opacity: 0.8; }
     
+    .meta-dot { font-size: 0.8em; opacity: 0.5; }
+
+    /* 极致张力的标题 */
+    .post-title {
+        font-size: 2.8rem;
+        font-weight: 850;
+        line-height: 1.25;
+        color: var(--text-primary);
+        margin: 0 0 1.5rem 0;
+        letter-spacing: -0.02em;
+    }
+
+    /* 柔和的标签 */
+    .tags-container { 
+        display: flex; 
+        gap: 10px; 
+        flex-wrap: wrap; 
+    }
+    .tag-badge { 
+        background-color: #f1f5f9; 
+        color: #475569; 
+        padding: 6px 14px; 
+        border-radius: 8px; 
+        font-size: 0.85rem; 
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease; 
+    }
+    .tag-badge:hover { 
+        background-color: #e2e8f0; 
+        color: #0f172a;
+    }
+
+    /* ========================================= */
+    /* 管理员按钮重构 */
+    /* ========================================= */
+    .admin-actions {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px dashed var(--border-color);
+        display: flex;
+        gap: 12px;
+    }
+    .admin-btn {
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+    .edit-btn {
+        background: #f8fafc;
+        color: #334155;
+        border-color: #cbd5e1;
+    }
+    .edit-btn:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .delete-btn {
+        background: transparent;
+        color: #ef4444;
+        border-color: #fca5a5;
+    }
+    .delete-btn:hover { background: #fef2f2; border-color: #ef4444; }
+
+    /* ========================================= */
+    /* 侧边栏：优雅悬浮目录 */
+    /* ========================================= */
+    .toc-aside {
+        position: sticky;
+        top: 100px; /* 距离导航栏的距离 */
+        width: 240px;
+        flex-shrink: 0; /* 防止被挤压 */
+        background: transparent;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        /* 隐藏滚动条但保留功能 */
+        scrollbar-width: none; 
+    }
+    .toc-aside::-webkit-scrollbar { display: none; }
+
+    .toc-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 1.2rem;
+        padding-left: 12px;
+    }
+
+    .toc-list { list-style: none; padding-left: 0; margin: 0; border-left: 2px solid #e2e8f0; }
+    .toc-list li { margin-bottom: 4px; }
+    
+    .toc-list a { 
+        text-decoration: none; 
+        color: #64748b; 
+        transition: all 0.2s ease; 
+        display: block; 
+        font-size: 0.9rem; 
+        padding: 6px 12px 6px 16px; 
+        border-radius: 0 6px 6px 0;
+        position: relative;
+        left: -2px; /* 覆盖在边框上 */
+        border-left: 2px solid transparent;
+    }
+    
+    .toc-list a:hover { 
+        color: var(--text-primary);
+        background: #f1f5f9;
+    }
+    
+    .toc-list a.active {
+        color: var(--accent-color);
+        font-weight: 600;
+        background: #eff6ff;
+        border-left-color: var(--accent-color);
+    }
+
+    .toc-depth-2 a { padding-left: 24px; }
+    .toc-depth-3 a { padding-left: 36px; font-size: 0.85rem; }
+
+    /* ========================================= */
+    /* 代码块一键复制按钮美化 */
+    /* ========================================= */
+    .copy-code-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(255, 255, 255, 0.08); 
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #94a3b8; 
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        opacity: 0;
+        backdrop-filter: blur(8px); 
+        z-index: 10;
+    }
+
+    .markdown-body pre:hover .copy-code-btn { opacity: 1; }
+    
+    .copy-code-btn:hover { 
+        background: rgba(255, 255, 255, 0.15); 
+        color: #f8fafc;
+    }
+
+    .copy-code-btn.copied { 
+        background: #10b981; 
+        color: white; 
+        border-color: #059669; 
+        opacity: 1; 
+    }
+
+    /* ========================================= */
+    /* Markdown 容器内微调 */
+    /* ========================================= */
+    .markdown-body {
+        font-family: inherit;
+        color: #334155;
+        font-size: 1.05rem;
+        line-height: 1.8;
+    }
+    .markdown-body h1, .markdown-body h2 {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-top: 2em;
+    }
+
+    /* 响应式降级 */
+    @media (max-width: 1024px) {
+        .layout-wrapper { flex-direction: column; }
+        .toc-aside { 
+            position: static; 
+            width: 100%; 
+            max-height: none; 
+            margin-bottom: 2rem; 
+            background: #fff;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+        .toc-list { border-left: none; display: flex; flex-wrap: wrap; gap: 8px; }
+        .toc-list li { margin: 0; }
+        .toc-list a { border-left: none; background: #f1f5f9; border-radius: 6px; padding: 6px 12px; left: 0; }
+        .toc-depth-2 a, .toc-depth-3 a { padding-left: 12px; }
+        .toc-list a.active { border-left: none; }
+        .post-header-bg { display: none; }
+    }
+    
+    @media (max-width: 768px) {
+        .article-container { padding: 2rem 1.5rem; }
+        .post-title { font-size: 2.2rem; }
+    }
 </style>
 
 <script>
-    // 💡 Astro 中的模块化 script 运行时 DOM 必定已就绪，直接写逻辑，剥离 DOMContentLoaded 包装！
-
     // ==========================================
     // 1. 挂载管理员与删除按钮逻辑
     // ==========================================
@@ -374,7 +431,7 @@ z-index: 10;
                 })
                 .catch(err => {
                     alert(err.message);
-                    deleteBtn.innerText = "🗑️ 删除文章";
+                    deleteBtn.innerText = "删除";
                 });
             }
         });
@@ -410,56 +467,50 @@ z-index: 10;
     // ==========================================
     // 3. 核心修复：目录滚动高亮 (Scroll Spy)
     // ==========================================
-    window.addEventListener('scroll', () => {
-    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 10) {
-        const last = headings[headings.length - 1];
-        if (last?.id) setActive(last.id);
-    }
-});
-    const headings = Array.from(
-    document.querySelectorAll('.markdown-body h1, .markdown-body h2, .markdown-body h3')
-);
-const tocLinks = document.querySelectorAll('.toc-list a');
+    const headings = Array.from(document.querySelectorAll('.markdown-body h1, .markdown-body h2, .markdown-body h3'));
+    const tocLinks = document.querySelectorAll('.toc-list a');
 
-if (headings.length > 0) {
-    let activeId = null;
+    if (headings.length > 0) {
+        let activeId = null;
 
-    const setActive = (id) => {
-        if (activeId === id) return;
-        activeId = id;
+        const setActive = (id) => {
+            if (activeId === id) return;
+            activeId = id;
 
-        tocLinks.forEach(link => link.classList.remove('active'));
+            tocLinks.forEach(link => link.classList.remove('active'));
 
-        const activeLink = Array.from(tocLinks).find(link => {
-            const href = link.getAttribute('href');
-            return href === `#${id}` || href === `#${encodeURIComponent(id)}`;
+            const activeLink = Array.from(tocLinks).find(link => {
+                const href = link.getAttribute('href');
+                return href === `#${id}` || href === `#${encodeURIComponent(id)}`;
+            });
+
+            if (activeLink) {
+                activeLink.classList.add('active');
+            }
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            const visibleHeadings = entries
+                .filter(e => e.isIntersecting)
+                .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+
+            if (visibleHeadings.length > 0) {
+                const id = visibleHeadings[0].target.id;
+                if (id) setActive(id);
+            }
+        }, {
+            rootMargin: '0px 0px -70% 0px', 
+            threshold: 0
         });
 
-        if (activeLink) {
-            activeLink.classList.add('active');
-            activeLink.scrollIntoView({
-                behavior: 'smooth',
-                block: 'nearest'
-            });
-        }
-    };
+        headings.forEach(h => observer.observe(h));
 
-    const observer = new IntersectionObserver((entries) => {
-        // 过滤出“进入视口”的标题
-        const visibleHeadings = entries
-            .filter(e => e.isIntersecting)
-            // ⭐ 核心：按距离顶部排序
-            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-
-        if (visibleHeadings.length > 0) {
-            const id = visibleHeadings[0].target.id;
-            if (id) setActive(id);
-        }
-    }, {
-        rootMargin: '0px 0px -70% 0px', // 更早触发，体验更自然
-        threshold: 0
-    });
-
-    headings.forEach(h => observer.observe(h));
-}
+        // 触底时自动高亮最后一个
+        window.addEventListener('scroll', () => {
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 10) {
+                const lastHeading = headings[headings.length - 1];
+                if (lastHeading && lastHeading.id) setActive(lastHeading.id);
+            }
+        });
+    }
 </script>

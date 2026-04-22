@@ -1,7 +1,12 @@
 ---
 import { ClientRouter } from 'astro:transitions';
-// src/layouts/Layout.astro
-const { title } = Astro.props;
+// 1. 接收更多的 SEO 属性，并设置默认值
+const { 
+    title, 
+    description = "天因你而笑 - 记录技术探索与生活点滴的博客", 
+    keywords = "博客,技术分享,记录生活" 
+} = Astro.props;
+
 const currentPath = Astro.url.pathname;
 ---
 
@@ -9,7 +14,17 @@ const currentPath = Astro.url.pathname;
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
-    <title>{title}</title>
+    <title>{title} | 天因你而笑</title>
+    
+    <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
+    
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
+
     <ClientRouter />
 </head>
 <body>
