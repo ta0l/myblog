@@ -29,6 +29,11 @@ const rawContent = article.content || "暂无内容";
 let cleanContent = rawContent.replace(/\*\*\s*(.+?)\s*\*\*/g, '**$1**');
 cleanContent = cleanContent.replace(/\*\*(.*?)([:：,，.。!！?？;；]+)\*\*/g, '**$1**$2');
 
+cleanContent = cleanContent.replace(
+    /(https:\/\/[a-zA-Z0-9-]+\.cos\.[a-zA-Z0-9-]+\.myqcloud\.com\/[^)"]+)/g,
+    '$1?imageView2/2/w/1200/format/webp/q/85'
+);
+
 const headings = [];
 const slugger = new GithubSlugger(); 
 const headingRegex = /^(#{1,3})\s+(.+)$/gm;

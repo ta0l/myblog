@@ -1,0 +1,44 @@
+version: '3.8'
+
+# 定义全局的日志轮转策略 (YAML 锚点)
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"  # 每个容器的日志文件最大 10MB
+    max-file: "3"    # 最多保留 3 个滚动备份
+
+services:
+  # Go 后端服务
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: always
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml
+    # 引入全局日志策略
+    logging: *default-logging
+
+  # Astro 前端服务
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: always
+    environment:
+      - NODE_ENV=production
+    logging: *default-logging
+
+  # Nginx 代理服务
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - api
+      - web
+    logging: *default-logging

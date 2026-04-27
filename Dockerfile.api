@@ -1,0 +1,19 @@
+# Dockerfile.api
+# 编译代码
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY . .
+# 禁用 CGO，编译纯静态二进制文件
+RUN CGO_ENABLED=0 GOOS=linux go build -o myblog_api main.go
+
+# 运行环境
+FROM alpine:latest
+WORKDIR /app
+# 复制编译好的二进制文件
+COPY --from=builder /app/myblog_api .
+# 创建一个专门存放 SQLite 数据库的目录
+RUN mkdir data
+# 暴露端口
+EXPOSE 8888
+# 启动程序
+CMD ["./myblog_api"]
