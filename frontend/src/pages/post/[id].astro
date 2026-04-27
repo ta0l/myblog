@@ -36,6 +36,8 @@ const cacheKey = `post-${id}`;
 let contentHTML = "";
 let headings = [];
 let seoDescription = "";
+let wordCount = 0;      // 字数统计变量
+let readingTime = 0;    // 阅读时间变量
 
 if (globalThis.articleCache.has(cacheKey)) {
     // ⚡️ 缓存命中：跳过所有繁重的解析，直接读取
@@ -43,11 +45,13 @@ if (globalThis.articleCache.has(cacheKey)) {
     contentHTML = cachedData.contentHTML;
     headings = cachedData.headings;
     seoDescription = cachedData.seoDescription;
+    wordCount = cachedData.wordCount;       // 🌟 读缓存
+    readingTime = cachedData.readingTime;   // 🌟 读缓存
     console.log(`[Cache Hit] 文章 ${id} 读取缓存，耗时 0ms ⚡️`);
 } else {
     // 🐌 缓存未命中：执行完整的 Markdown 编译流水线
     console.log(`[Cache Miss] 文章 ${id} 执行全量 Markdown 解析...`);
-    
+
     let cleanContent = rawContent.replace(/\*\*\s*(.+?)\s*\*\*/g, '**$1**');
     cleanContent = cleanContent.replace(/\*\*(.*?)([:：,，.。!！?？;；]+)\*\*/g, '**$1**$2');
 
@@ -55,6 +59,17 @@ if (globalThis.articleCache.has(cacheKey)) {
         /(https:\/\/[a-zA-Z0-9-]+\.cos\.[a-zA-Z0-9-]+\.myqcloud\.com\/[^)"]+)/g,
         '$1?imageView2/2/w/1200/format/webp/q/85'
     );
+
+    // 1. 匹配中文字符
+    const cnCharCount = (cleanContent.match(/[\u4e00-\u9fa5]/g) || []).length;
+    // 2. 匹配英文单词（将中文替换为空后，按连续字母数字切分）
+    const enWordCount = (cleanContent.replace(/[\u4e00-\u9fa5]/g, '').match(/[a-zA-Z0-9]+/g) || []).length;
+    
+    wordCount = cnCharCount + enWordCount;
+    // 按照人类平均阅读速度：中文约 300-400字/分钟，英文约 200-250词/分钟。这里取个中间值 300。
+    readingTime = Math.ceil(wordCount / 300);
+    // 兜底：哪怕字数很少，也至少显示 1 分钟
+    if (readingTime < 1) readingTime = 1;
 
     // 提取 SEO 描述
     seoDescription = cleanContent
@@ -95,7 +110,7 @@ if (globalThis.articleCache.has(cacheKey)) {
     contentHTML = vfile.toString();
 
     // 将解析结果存入内存缓存
-    globalThis.articleCache.set(cacheKey, { contentHTML, headings, seoDescription });
+    globalThis.articleCache.set(cacheKey, { contentHTML, headings, seoDescription, wordCount, readingTime });
 
     // 简易的 LRU 清理：防止服务器内存溢出（限制缓存最新的 50 篇文章）
     if (globalThis.articleCache.size > 50) {
@@ -133,6 +148,11 @@ const publishDate = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${da
                     <a href={`/explore?category=${article.category}`} class="category-link">{article.category}</a>
                     <span class="meta-dot">•</span>
                     <time class="publish-date">{publishDate}</time>
+
+                    <span class="meta-dot">•</span>
+                    <span class="word-count">约 {wordCount} 字</span>
+                    <span class="meta-dot">•</span>
+                    <span class="reading-time">阅读 {readingTime} 分钟</span>
                 </div>
                 
                 <h1 class="post-title">{article.title}</h1>
