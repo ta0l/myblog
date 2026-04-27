@@ -61,7 +61,7 @@ export async function checkAuth() {
     // 4. 缓存过期或首次加载，向服务器发起真实的静默校验
     console.log("🌐 向服务器发起 Token 真实校验...");
     try {
-        const res = await fetch('http://api:8888/api/auth/verify', {
+        const res = await fetch('/api/auth/verify', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${token}` }
         });

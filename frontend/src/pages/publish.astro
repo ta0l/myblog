@@ -421,7 +421,7 @@ import Layout from '../layouts/Layout.astro';
             publishBtn.innerHTML = "⏳ 正在发布...";
             (publishBtn as HTMLButtonElement).disabled = true;
 
-            fetch('http://api:8888/api/articles', {
+            fetch('/api/articles', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
