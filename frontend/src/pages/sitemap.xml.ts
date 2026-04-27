@@ -2,7 +2,7 @@
 export async function GET({ request }) {
   // 1. 请求 Go 后端，获取所有文章的简略列表（只需 ID 和 更新时间）
   // 假设你给后端加了一个 /api/articles/sitemap 接口，或者直接用现有的列表接口
-  const res = await fetch('http://localhost:8888/api/articles?limit=1000');
+  const res = await fetch('http://api:8888/api/articles?limit=1000');
   const data = await res.json();
   const articles = data.articles || [];
 

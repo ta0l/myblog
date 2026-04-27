@@ -3,7 +3,7 @@
 import Layout from '../layouts/Layout.astro';
 
 // 获取分类和标签数据
-const response = await fetch('http://localhost:8888/api/sidebar');
+const response = await fetch('http://api:8888/api/sidebar');
 const data = await response.json();
 ---
 

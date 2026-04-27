@@ -6,7 +6,7 @@ const currentTag = Astro.url.searchParams.get('tag') || '';
 const currentQ = Astro.url.searchParams.get('q') || ''; // 获取搜索词
 const currentPage = parseInt(Astro.url.searchParams.get('page') || '1'); // 获取页码
 
-let apiURL = 'http://localhost:8888/api/articles';
+let apiURL = 'http://api:8888/api/articles';
 const params = new URLSearchParams();
 if (currentCategory) params.append('category', currentCategory);
 if (currentTag) params.append('tag', currentTag);
@@ -17,7 +17,7 @@ if (params.toString()) apiURL += '?' + params.toString();
 
 const [articlesRes, sidebarRes] = await Promise.all([
     fetch(apiURL),
-    fetch('http://localhost:8888/api/sidebar')
+    fetch('http://api:8888/api/sidebar')
 ]);
 
 // 注意：后端的返回结构变了！现在是 result.articles 才是文章数组

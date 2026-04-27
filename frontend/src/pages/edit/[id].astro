@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 
 // 【SSR 的魔法】在服务端直接查出旧数据
 const { id } = Astro.params;
-const apiURL = `http://localhost:8888/api/articles/${id}`;
+const apiURL = `http://api:8888/api/articles/${id}`;
 const response = await fetch(apiURL);
 
 if (response.status === 404) {
@@ -97,7 +97,7 @@ const article = await response.json();
                 msgBox.style.color = "#666";
 
                 // 发起修改请求
-                fetch(`http://localhost:8888/api/articles/${articleId}`, {
+                fetch(`http://api:8888/api/articles/${articleId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
