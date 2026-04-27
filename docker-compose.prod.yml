@@ -1,0 +1,26 @@
+# docker-compose.prod.yml
+version: '3.8'
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: ghcr.io/ta0l/myblog/api:latest
+    restart: always
+    ports:
+      - "127.0.0.1:8888:8888"
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml
+    logging: *default-logging
+
+  web:
+    image: ghcr.io/ta0l/myblog/web:latest
+    restart: always
+    ports:
+      - "127.0.0.1:4321:4321"
+    logging: *default-logging
